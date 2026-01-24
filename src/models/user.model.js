@@ -29,6 +29,11 @@ const userSchema = new mongoose.Schema(
             default: "user",
         },
 
+        coverImage: {
+            type: String,
+            default: null
+        },
+
         expertTags: {
             type: [String],
             default: [],
