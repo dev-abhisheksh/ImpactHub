@@ -207,6 +207,13 @@ const toggleDeleteProblemVisibility = async (req, res) => {
         problem.isDeleted = !problem.isDeleted
         await problem.save()
 
+        await logAdminAction({
+            adminId: req.user._id,
+            action: problem.isDeleted ? "HIDE_PROBLEM" : "UNHIDE_PROBLEM",
+            entityType: "Problem",
+            entityId: problem._id
+        })
+
         return res.status(200).json({
             message: `Problem ${problem.isDeleted ? "Hidden" : "Visible"} successfully`,
             problem
