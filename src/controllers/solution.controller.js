@@ -83,6 +83,13 @@ const acceptSolution = async (req, res) => {
         await Promise.all([solution.save({ session }), problem.save({ session })])
         await session.commitTransaction()
 
+        await logAdminAction({
+            adminId: req.user._id,
+            action: "ACCEPT_SOLUTION",
+            entityType: "Solution",
+            entityId: req.params.solutionId
+        })
+
         await addReputationEvent({ userId: solution.answeredBy, solutionId: req.params.solutionId, type: "solution_accepted" })
 
         return res.status(200).json({ message: "Solution accepted" });
