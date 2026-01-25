@@ -2,12 +2,18 @@ const MODEL_NAME = "gemini-2.5-flash-lite";
 const API_VERSION = "v1beta";
 
 export const generateCategoryWithAi = async ({ title, description }) => {
-    const prompt = `Choose ONE best category for the problem based on title and description.
-Return only the category name (no explanation, no extra text).
+    const prompt = `
+    Choose EXACTLY ONE category from the list below.
+    Do NOT invent new categories. Return only the category text.
 
-Title: ${title}
-Description: ${description}
-`
+    Allowed categories:
+    water conservation, food waste, energy efficiency, waste management,
+    sustainable agriculture, air pollution, plastic reduction,
+    urban sustainability, climate awareness, eco-friendly living
+
+    Title: ${title}
+    Description: ${description}
+    `;
 
     const res = await fetch(`https://generativelanguage.googleapis.com/${API_VERSION}/models/${MODEL_NAME}:generateContent?key=${process.env.GEMINI_API_KEY}`,
         {
