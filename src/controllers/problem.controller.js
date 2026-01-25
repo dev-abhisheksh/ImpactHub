@@ -3,10 +3,11 @@ import { Problem } from "../models/problem.model.js ";
 import mongoose from "mongoose";
 import { User } from "../models/user.model.js";
 import { uploadToCloudinary } from "../utils/uploadToCloudinary.js";
+import { generateTagsWithAI } from "../services/tagsGenerationWithAi.servce.js";
 
 const createProblem = async (req, res) => {
     try {
-        let { title, description, category, tags, expertOnly } = req.body;
+        let { title, description, category, expertOnly } = req.body;
         if (!title || !description || !category) {
             return res.status(400).json({ message: "Title , description and category are required" })
         }
@@ -27,20 +28,11 @@ const createProblem = async (req, res) => {
         description = description.trim()
         category = category.trim().toLowerCase()
 
-        if (tags) {
-            try {
-                tags = JSON.parse(tags);
-            } catch (err) {
-                return res.status(400).json({ message: "Tags must be a valid JSON array" });
-            }
-        }
 
-        if (tags && !Array.isArray(tags)) {
-            return res.status(400).json({ message: "Tags must be an array" });
-        }
+        const tags = await generateTagsWithAI({ title, description })
+        const normalizedTags = tags.map(t => t.trim().toLowerCase());
 
-        const normalizedTags = tags ? tags.map(tag => tag.trim().toLowerCase()) : [];
-        console.log("FINAL bannerImage value:", bannerImage);
+        console.log("TAgs : ", normalizedTags)
 
         const problem = await Problem.create({
             title,
