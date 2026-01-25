@@ -81,6 +81,21 @@ const userSchema = new mongoose.Schema(
         proExpiresAt: {
             type: Date,
             default: null
+        },
+
+        bio: {
+            type: String,
+            trim: true
+        },  
+
+        experience: {
+            type: Number,
+            default: 0,
+        },
+
+        portfolioLink: {
+            type: String,
+            default: null
         }
 
     },
