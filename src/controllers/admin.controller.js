@@ -186,6 +186,40 @@ const approveRedemptionRequest = async (req, res) => {
     }
 }
 
+const rejectRedemptionRequest = async (req, res) => {
+    try {
+        if (req.user.role !== "admin") {
+            return res.status(403).json({ message: "Only Admins are allowed" })
+        }
+        const { redemptionId } = req.params;
+        const request = await Redemption.findById(redemptionId)
+        if (!request) return res.status(404).json({ message: "Redemption Request not found or already processed" })
+
+        if (request.status !== "pending") {
+            return res.status(400).json({ message: "Request already processed" });
+        }
+
+        request.status = "rejected"
+        await request.save()
+
+        await AdminLog.create({
+            adminId: req.user._id,
+            action: "rejected_redemption_request",
+            entityType: "Redemption",
+            entityId: request._id,
+            meta: {
+                userId: request.userId,
+                points: request.points,
+                rewardType: request.rewardType
+            }
+        })
+        return res.status(200).json({ message: "Redemption Request rejected" })
+    } catch (error) {
+        console.error("Failed to reject redemption request", error)
+        return res.status(500).json({ message: "Failed to reject redemption request" })
+    }
+}
+
 // ---------------------------------------   ADMIN LOGS   ---------------------------------------
 const adminLogs = async (req, res) => {
     try {

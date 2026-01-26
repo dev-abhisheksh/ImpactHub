@@ -9,7 +9,7 @@ const requestRedemption = async (req, res) => {
 
         const { points } = req.body;
         if (![500, 1000].includes(points)) {
-            return res.status()
+            return res.status(400).json({ message: "Invalid points for redemption request. Select 500 or 1000 points." })
         }
 
         const userId = new mongoose.Types.ObjectId(req.user._id)
@@ -36,7 +36,7 @@ const requestRedemption = async (req, res) => {
         const availablePoints = totalEarned - totalRedeemed;
         console.log("Left points:", availablePoints)
         if (availablePoints < points) {
-            return res.status(400).json({ message: "Insufficient points for redemption!" })
+            return res.status(400).json({ message: "Insufficient points for redemption!", availablePoints })
         }
 
         const redemption = await Redemption.create({
