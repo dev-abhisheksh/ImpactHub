@@ -1,5 +1,6 @@
 import { AdminLog } from "../models/adminLog.model.js"
 import { ExpertApplication } from "../models/expertApplication.model.js"
+import { Redemption } from "../models/redemption.model.js"
 import { User } from "../models/user.model.js"
 
 const expertApplicationRequests = async (req, res) => {
@@ -105,6 +106,30 @@ const rejectExpertApplication = async (req, res) => {
     }
 }
 
+// ---------------------------------------   REDEMPTION REQUESTS   ---------------------------------------
+
+const redemptionRequests = async (req, res) => {
+    try {
+        if (req.user.role !== "admin") {
+            return res.status(403).json({ message: "Only Admins are allowed" })
+        }
+
+        const requests = await Redemption.find({ status: "pending" }).sort({ createdAt: -1 })
+        if (requests.length === 0) {
+            return res.status(404).json({ message: "No pending redemption requests found" })
+        }
+        return res.status(200).json({
+            message: "Fetched all pending redemption requests",
+            count: requests.length,
+            requests
+        })
+    } catch (error) {
+        console.error("Failed to fetch redemption requests", error)
+        return res.status(500).json({ message: "Failed to fetch redemption requests" })
+    }
+}
+
+
 
 // ---------------------------------------   ADMIN LOGS   ---------------------------------------
 const adminLogs = async (req, res) => {
@@ -113,7 +138,7 @@ const adminLogs = async (req, res) => {
             return res.status(403).json({ message: "Only Admins are allowed" })
         }
 
-        const logs = await AdminLog.find().sort({createdAt: -1})
+        const logs = await AdminLog.find().sort({ createdAt: -1 })
         if (!logs) return res.status(404).json({ message: "No logs are found" })
 
         return res.status(200).json({
@@ -131,5 +156,6 @@ export {
     expertApplicationRequests,
     approveExpertApplication,
     rejectExpertApplication,
-    adminLogs
+    adminLogs,
+    redemptionRequests
 }
