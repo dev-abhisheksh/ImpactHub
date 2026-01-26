@@ -1,7 +1,7 @@
 import express from "express";
 import verifyToken from "../middlewares/auth.middleware.js";
 import authorizeRoles from "../middlewares/roles.middleware.js";
-import { adminLogs, approveExpertApplication, approveRedemptionRequest, expertApplicationRequests, redemptionRequests, rejectExpertApplication } from "../controllers/admin.controller.js";
+import { adminLogs, approveExpertApplication, approveRedemptionRequest, expertApplicationRequests, redemptionRequests, rejectExpertApplication, rejectRedemptionRequest } from "../controllers/admin.controller.js";
 
 const router = express.Router();
 
@@ -13,6 +13,7 @@ router.patch("/expert-application/:applicationId/reject", verifyToken, authorize
 
 router.get("/redemption-requests", verifyToken, authorizeRoles("admin"), redemptionRequests)
 router.patch("/redemption/:redemptionId/approve", verifyToken, authorizeRoles("admin"), approveRedemptionRequest)
+router.patch("/redemption/:redemptionId/reject", verifyToken, authorizeRoles("admin"), rejectRedemptionRequest)
 
 // -----------------------------------   ADMIN LOGS   -----------------------------------
 router.get("/logs", verifyToken, authorizeRoles("admin"), adminLogs)

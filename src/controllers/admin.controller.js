@@ -247,5 +247,6 @@ export {
     rejectExpertApplication,
     adminLogs,
     redemptionRequests,
-    approveRedemptionRequest
+    approveRedemptionRequest,
+    rejectRedemptionRequest
 }

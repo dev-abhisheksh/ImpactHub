@@ -5,6 +5,7 @@ import { User } from "../models/user.model.js";
 import { uploadToCloudinary } from "../utils/uploadToCloudinary.js";
 import { generateTagsWithAI } from "../services/tagsGenerationWithAi.servce.js";
 import { generateCategoryWithAi } from "../services/categoryGenerationWithAi.service.js";
+import { textEnhancementService } from "../services/textEnhancement.service.js";
 
 const createProblem = async (req, res) => {
     try {
@@ -20,7 +21,8 @@ const createProblem = async (req, res) => {
         }
 
         title = title.trim();
-        description = description.trim();
+        let enhancedDescription = await textEnhancementService({ text: description, purpose: "clarify_problem_description" })
+        enhancedDescription = enhancedDescription.trim();
 
         let category = await generateCategoryWithAi({ title, description });
         category = category.trim().toLowerCase();
@@ -37,7 +39,7 @@ const createProblem = async (req, res) => {
 
         const problem = await Problem.create({
             title,
-            description,
+            description: enhancedDescription,
             category,
             tags: normalizedTags,
             expertOnly: expertOnly === true,
