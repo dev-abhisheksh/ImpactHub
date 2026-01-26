@@ -76,6 +76,17 @@ const registerExpert = async (req, res) => {
             return res.status(400).json({ message: "Bio and expert categories are required" });
         }
 
+        const existingApplication = await ExpertApplication.findOne({
+            userId: req.user._id,
+            status: "pending"
+        });
+
+        if (existingApplication) {
+            return res.status(400).json({
+                message: "Your expert application is already under review"
+            });
+        }
+
         const expertApplication = await ExpertApplication.create({
             userId: req.user._id,
             bio: bio.trim(),
