@@ -88,6 +88,16 @@ const rejectExpertApplication = async (req, res) => {
         application.reviewedBy = req.user._id
         await application.save()
 
+        await AdminLog.create({
+            adminId: req.user._id,
+            action: "rejected_expert_application",
+            entityType: "ExpertApplication",
+            entityId: application._id,
+            meta: {
+                userId: application.userId
+            }
+        })
+
         return res.status(200).json({ message: "Expert application rejected successfully" })
     } catch (error) {
         console.error("Failed to reject expert application", error)
@@ -103,7 +113,7 @@ const adminLogs = async (req, res) => {
             return res.status(403).json({ message: "Only Admins are allowed" })
         }
 
-        const logs = await AdminLog.find()
+        const logs = await AdminLog.find().sort({createdAt: -1})
         if (!logs) return res.status(404).json({ message: "No logs are found" })
 
         return res.status(200).json({
