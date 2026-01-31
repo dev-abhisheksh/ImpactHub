@@ -10,6 +10,8 @@ import notificationRouter from "./routes/notification.route.js"
 import redemptionRouter from "./routes/redemption.route.js"
 import userRouter from "./routes/user.route.js"
 import adminRouter from "./routes/admin.route.js";
+import chatRouter from "./routes/conversation.route.js"
+import cors from "cors";
 
 dotenv.config();
 
@@ -17,6 +19,12 @@ const app = express();
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser())
+
+app.use(cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+}));
 
 
 app.use("/api/v1/auth", authRouter)
@@ -28,5 +36,6 @@ app.use("/api/v1/notifications", notificationRouter)
 app.use("/api/v1/redemptions", redemptionRouter)
 app.use("/api/v1/users", userRouter)
 app.use("/api/v1/admin", adminRouter)
+app.use("/api/v1/chat", chatRouter)
 
 export default app;
