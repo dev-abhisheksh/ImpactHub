@@ -6,24 +6,38 @@ import mongoose from "mongoose";
 const getNotifications = async (req, res) => {
     try {
         if (req.user.role !== "expert") {
-            return res.status(403).json({ message: "Only Experts can view notifications" })
+            return res
+                .status(403)
+                .json({ message: "Only experts can view notifications" })
         }
 
-        const notifications = await Notification.find({ userId: req.user._id }).sort({ createdAt: -1 })
-        .populate("problemId", "_id title createdAt")
-        .populate("userId", "fullName role")
-        if (!notifications) return res.status(404).json({ message: "No notifications" })
+        const notifications = await Notification.find({
+            userId: req.user._id,
+        })
+            .sort({ createdAt: -1 })
+            .populate({
+                path: "problemId",
+                select: "title createdAt createdBy",
+                populate: {
+                    path: "createdBy",
+                    select: "fullName role",
+                },
+            })
+            .lean()
 
         return res.status(200).json({
-            message: "Fetched Notifications",
+            message: "Fetched notifications",
             count: notifications.length,
-            notifications
+            notifications,
         })
     } catch (error) {
-        console.error("Failed to fetch notifications")
-        return res.status(500).json({ message: "Failed to fetch notifications" })
+        console.error("Failed to fetch notifications", error)
+        return res.status(500).json({
+            message: "Failed to fetch notifications",
+        })
     }
 }
+
 
 const readNotifications = async (req, res) => {
     try {
