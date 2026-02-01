@@ -3,7 +3,8 @@ import { Problem } from "../models/problem.model.js ";
 import mongoose from "mongoose";
 import { User } from "../models/user.model.js";
 import { uploadToCloudinary } from "../utils/uploadToCloudinary.js";
-import { generateCategoryWithAi, generateTagsWithAI } from "../services/ai.service.js";
+import { generateCategoryWithAi } from "../services/ai.service.js";
+import { generateTagsWithAI } from "../services/tagsGenerationWithAi.servce.js";
 
 const createProblem = async (req, res) => {
     try {
@@ -22,19 +23,27 @@ const createProblem = async (req, res) => {
         title = title.trim();
         description = description.trim();
 
-        let category = await generateCategoryWithAi({ title, description });
-        category = category.trim().toLowerCase();
+        let category;
+        try {
+            category = await generateCategoryWithAi({ title, description });
+            category = category.trim().toLowerCase();
+        } catch (error) {
+            console.error("AI category generation failed:", error);
+            category = "general";
+        }
 
-        let tags = await generateTagsWithAI({ title, description, category })
+        let tags = [];
+        try {
+            tags = await generateTagsWithAI({ title, description, category });
 
-        if (typeof tags === 'string') {
-            try {
+            if (typeof tags === 'string') {
                 tags = JSON.parse(tags);
-            } catch (e) {
+            }
+            if (!Array.isArray(tags)) {
                 tags = [];
             }
-        }
-        if (!Array.isArray(tags)) {
+        } catch (error) {
+            console.error("AI tags generation failed:", error);
             tags = [];
         }
 

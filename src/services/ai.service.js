@@ -55,6 +55,12 @@ Allowed categories:
 water conservation, food waste, energy efficiency, waste management,
 sustainable agriculture, air pollution, plastic reduction,
 urban sustainability, climate awareness, eco-friendly living
+Water scarcity, water pollution, food waste, food insecurity,
+energy wastage, fossil dependence, plastic waste, poor segregation,
+e-waste dumping, landfill overflow, air pollution, noise pollution,
+urban flooding, traffic congestion, climate impacts, heatwaves,
+soil degradation, crop wastage, chemical overuse, overconsumption,
+single-use plastics, weak enforcement, low awareness.
 
 Title: ${title}
 Description: ${description}
