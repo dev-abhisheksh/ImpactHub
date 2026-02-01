@@ -7,7 +7,7 @@ import { mySolutions } from "../controllers/userDashboard.controller.js";
 
 const router = express.Router()
 
-router.post("/create/:problemId", verifyToken, aiModeration, createSolution)
+router.post("/create/:problemId", verifyToken, createSolution)
 router.patch("/accept/:solutionId", verifyToken, acceptSolution)
 router.get("/my", verifyToken, mySolutions)
 router.get("/:problemId", verifyToken, allSolutionsOfProblem)

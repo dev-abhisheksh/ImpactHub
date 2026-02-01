@@ -31,15 +31,17 @@ const createSolution = async (req, res) => {
         const problem = await Problem.findOne({ _id: problemId, isDeleted: false });
         if (!problem) return res.status(404).json({ message: "Problem not found!" })
 
-        // if (problem.expertOnly && req.user.role !== "expert") {
-        //     return res.status(403).json({ message: "Only Experts are allowed" })
-        // }
+        if (problem.expertOnly && req.user.role !== "expert") {
+            return res.status(403).json({ message: "Only Experts are allowed" })
+        }
 
         const solution = await Solution.create({
             answer,
             problemId,
             answeredBy: req.user._id,
         })
+
+        await solution.populate("answeredBy", "fullName")
 
         await addReputationEvent({ userId: req.user._id, solutionId: solution._id, type: "commented" })
 
@@ -49,57 +51,102 @@ const createSolution = async (req, res) => {
         })
 
     } catch (error) {
-        console.error("Failed to create a solution", error)
-        if (error.code === 11000) {
-            return res.status(409).json({ message: "You already submitted a solution" })
+        console.error("Failed to create a solution", error);
+
+        if (error?.code === 11000) {
+            return res.status(409).json({
+                message: "You have already submitted a solution for this problem"
+            });
         }
-        return res.status(500).json({ message: "Failed to create a solution" })
+
+        return res.status(500).json({
+            message: "Failed to create a solution"
+        });
     }
 }
 
-//using automacity ,if one operation fails all falls back gracefully
 const acceptSolution = async (req, res) => {
-    const session = await mongoose.startSession()
-    session.startTransaction();
     try {
-        const solution = await Solution.findById(req.params.solutionId).session(session)
-        if (!solution) throw new Error("Solution not found")
+        const { solutionId } = req.params;
 
-        if (solution.isAccepted) return res.status(400).json({ message: "Solution is alreay accepted" })
-        if (solution.answeredBy.equals(req.user._id)) {
-            return res.status(400).json({ message: "Can accept your answer" })
+        // Find solution
+        const solution = await Solution.findById(solutionId);
+        if (!solution) {
+            return res.status(404).json({ message: "Solution not found" });
         }
 
-        const problem = await Problem.findById(solution.problemId).session(session)
-        if (!problem || problem.status !== "open") throw new Error("Invalid problem state")
-
-        if (!problem.createdBy.equals(req.user._id) && req.user.role !== "admin") {
-            return res.status(403).json({ message: "Not allowed" })
+        // Check if already accepted
+        if (solution.isAccepted) {
+            return res.status(400).json({ message: "Solution is already accepted" });
         }
 
+        // Check if user is trying to accept their own solution
+        if (solution.answeredBy.toString() === req.user._id.toString()) {
+            return res.status(400).json({ message: "Cannot accept your own answer" });
+        }
+
+        // Find problem
+        const problem = await Problem.findById(solution.problemId);
+        if (!problem) {
+            return res.status(404).json({ message: "Problem not found" });
+        }
+
+        // Check if problem is open
+        if (problem.status !== "open") {
+            return res.status(400).json({ message: "Problem is not open" });
+        }
+
+        // Check authorization (must be problem owner or admin)
+        if (problem.createdBy.toString() !== req.user._id.toString() && req.user.role !== "admin") {
+            return res.status(403).json({ message: "Only problem owner can accept solutions" });
+        }
+
+        // Update solution and problem
         solution.isAccepted = true;
-        problem.status = "solved"
+        problem.status = "solved";
 
-        await Promise.all([solution.save({ session }), problem.save({ session })])
-        await session.commitTransaction()
+        await Promise.all([
+            solution.save(),
+            problem.save()
+        ]);
 
-        await logAdminAction({
-            adminId: req.user._id,
-            action: "ACCEPT_SOLUTION",
-            entityType: "Solution",
-            entityId: req.params.solutionId
-        })
+        // ✅ Add reputation points for accepted solution
+        try {
+            await addReputationEvent({
+                userId: solution.answeredBy,
+                solutionId: solutionId,
+                type: "solution_accepted"
+            });
+        } catch (err) {
+            console.error("Failed to add reputation:", err.message);
+        }
 
-        await addReputationEvent({ userId: solution.answeredBy, solutionId: req.params.solutionId, type: "solution_accepted" })
+        // ✅ Log admin action (optional)
+        try {
+            await logAdminAction({
+                adminId: req.user._id,
+                action: "ACCEPT_SOLUTION",
+                entityType: "Solution",
+                entityId: solutionId
+            });
+        } catch (err) {
+            console.error("Failed to log admin action:", err.message);
+        }
 
-        return res.status(200).json({ message: "Solution accepted" });
+        return res.status(200).json({
+            message: "Solution accepted successfully",
+            solution,
+            problem
+        });
+
     } catch (error) {
-        await session.abortTransaction()
-        return res.status(400).json({ message: error.message })
-    } finally {
-        session.endSession()
+        console.error("Accept solution error:", error);
+        return res.status(500).json({
+            message: "Failed to accept solution",
+            error: error.message
+        });
     }
-}
+};
 
 const allSolutionsOfProblem = async (req, res) => {
     try {
@@ -108,6 +155,7 @@ const allSolutionsOfProblem = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(problemId)) {
             return res.status(400).json({ message: "Invalid problemID" })
         }
+
 
         const problem = await Problem.findById(problemId)
         if (!problem) return res.status(404).json({ message: "Problem not found" })
@@ -137,6 +185,7 @@ const allSolutionsOfProblem = async (req, res) => {
 
         return res.status(200).json({
             message: `Fetched all solutions for problem : ${problem?.title}`,
+            count: finalSolutions.length,
             solutions: finalSolutions
         })
     } catch (error) {

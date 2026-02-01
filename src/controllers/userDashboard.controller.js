@@ -129,7 +129,14 @@ import { Redemption } from "../models/redemption.model.js";
 export const myEarnings = async (req, res) => {
     try {
         const reputationRecords = await Reputation.find({ userId: req.user._id })
-            .populate("solutionId", "_id answer")
+            .populate({
+                path: "solutionId",
+                select: "_id answer problemId",
+                populate: {
+                    path: "problemId",
+                    select: "_id title"
+                }
+            })
             .sort({ createdAt: -1 });
 
         const redemptionRecords = await Redemption.find({
@@ -149,6 +156,7 @@ export const myEarnings = async (req, res) => {
             redemptionRecords
         });
     } catch (error) {
+        console.error("Failed to fetch earnings:", error);
         return res.status(500).json({ message: "Failed to fetch earnings" });
     }
 };
