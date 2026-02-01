@@ -3,13 +3,12 @@ import { Problem } from "../models/problem.model.js ";
 import mongoose from "mongoose";
 import { User } from "../models/user.model.js";
 import { uploadToCloudinary } from "../utils/uploadToCloudinary.js";
-import { generateTagsWithAI } from "../services/tagsGenerationWithAi.servce.js";
-import { generateCategoryWithAi } from "../services/categoryGenerationWithAi.service.js";
-import { textEnhancementService } from "../services/textEnhancement.service.js";
+import { generateCategoryWithAi, generateTagsWithAI } from "../services/ai.service.js";
 
 const createProblem = async (req, res) => {
     try {
-        let { title, description, expertOnly, tags } = req.body;
+        let { title, description, expertOnly, } = req.body;
+
         if (!title || !description) {
             return res.status(400).json({ message: "Title and description are required" });
         }
@@ -21,20 +20,29 @@ const createProblem = async (req, res) => {
         }
 
         title = title.trim();
-        // let enhancedDescription = await textEnhancementService({ text: description, purpose: "clarify_problem_description" })
-        // enhancedDescription = enhancedDescription.trim();
-        description = description.trim()
+        description = description.trim();
 
         let category = await generateCategoryWithAi({ title, description });
         category = category.trim().toLowerCase();
 
-        // let tags = await generateTagsWithAI({ title, description, category });
+        let tags = await generateTagsWithAI({ title, description, category })
+
+        if (typeof tags === 'string') {
+            try {
+                tags = JSON.parse(tags);
+            } catch (e) {
+                tags = [];
+            }
+        }
+        if (!Array.isArray(tags)) {
+            tags = [];
+        }
 
         const normalizedTags = [
             ...new Set(
                 tags
-                    .map(t => t.toLowerCase().trim())
-                    .filter(t => !t.includes(" "))
+                    .map(t => String(t).toLowerCase().trim())
+                    .filter(t => t.length > 0 && !t.includes(" "))
             )
         ];
 
@@ -43,7 +51,7 @@ const createProblem = async (req, res) => {
             description: description,
             category,
             tags: normalizedTags,
-            expertOnly: expertOnly === true,
+            expertOnly: expertOnly === true || expertOnly === 'true',
             createdBy: req.user._id,
             bannerImage
         });
