@@ -1,3 +1,4 @@
+import { populate } from "dotenv";
 import { Notification } from "../models/notification.model.js";
 import mongoose from "mongoose";
 
@@ -9,6 +10,8 @@ const getNotifications = async (req, res) => {
         }
 
         const notifications = await Notification.find({ userId: req.user._id }).sort({ createdAt: -1 })
+        .populate("problemId", "_id title createdAt")
+        .populate("userId", "fullName role")
         if (!notifications) return res.status(404).json({ message: "No notifications" })
 
         return res.status(200).json({
