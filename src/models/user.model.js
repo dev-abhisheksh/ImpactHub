@@ -96,8 +96,16 @@ const userSchema = new mongoose.Schema(
         portfolioLink: {
             type: String,
             default: null
-        }
+        },
 
+        isBanned: {
+            type: Boolean,
+            default: false
+        },
+
+        banExpiresAt: {
+            type: Date
+        }
     },
     { timestamps: true }
 );

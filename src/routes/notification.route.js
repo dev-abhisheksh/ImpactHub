@@ -5,7 +5,7 @@ import { getNotifications, readNotifications } from "../controllers/notification
 
 const router = express.Router();
 
-router.get("/", verifyToken, authorizeRoles("expert"), getNotifications)
-router.patch("/:notificationId/read", verifyToken, authorizeRoles("expert"), readNotifications)
+router.get("/", verifyToken, getNotifications)
+router.patch("/:notificationId/read", verifyToken, readNotifications)
 
 export default router;

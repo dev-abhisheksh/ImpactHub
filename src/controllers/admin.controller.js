@@ -1,5 +1,6 @@
 import { AdminLog } from "../models/adminLog.model.js"
 import { ExpertApplication } from "../models/expertApplication.model.js"
+import { Notification } from "../models/notification.model.js"
 import { Problem } from "../models/problem.model.js"
 import { Redemption } from "../models/redemption.model.js"
 import { Reputation } from "../models/reputation.model.js"
@@ -508,6 +509,44 @@ const toggleSolutionsVisibility = async (req, res) => {
     }
 }
 
+const banUser = async (req, res) => {
+    try {
+        if (req.user.role !== "admin") return res.status(403).json({ message: "Admins only" })
+        const { userId } = req.params;
+        const { banTime } = req.body;
+        if (!banTime || !userId) return res.status(400).json({ message: "banTime and UserId are required for banning a user" })
+
+        const hours = Number(banTime);
+        if (!hours || hours <= 0) return res.status(400).json({ message: "Invalid banTime" });
+
+        await User.findByIdAndUpdate(userId, {
+            isBanned: true,
+            banExpiresAt: new Date(Date.now() + hours * 60 * 60 * 1000)
+        });
+
+        await Notification.create({
+            userId,
+            message: `You are banned for ${hours} hours until ${new Date(Date.now() + hours * 3600000).toLocaleString()}`
+        })
+
+        await AdminLog.create({
+            adminId: req.user._id,
+            entityId: userId,
+            entityType: "User",
+            action: "banned_user",
+            meta: {}
+        })
+
+        return res.status(200).json({
+            message: `User banned for ${banTime} hours`
+        })
+
+    } catch (error) {
+        console.error("Failed to ban user", error)
+        return res.status(500).json({ message: "Failed to ban user" })
+    }
+}
+
 export {
     expertApplicationRequests,
     approveExpertApplication,
@@ -521,5 +560,6 @@ export {
     toggleDeleteProblem,
     fetchProductsForAdmin,
     fetchSolutionsForAdmin,
-    toggleSolutionsVisibility
+    toggleSolutionsVisibility,
+    banUser
 }

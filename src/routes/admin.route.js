@@ -1,7 +1,7 @@
 import express from "express";
 import verifyToken from "../middlewares/auth.middleware.js";
 import authorizeRoles from "../middlewares/roles.middleware.js";
-import { adminLogs, approveExpertApplication, approveRedemptionRequest, expertApplicationRequests, fetchAllUsers, fetchProductsForAdmin, fetchSolutionsForAdmin, redemptionRequests, rejectExpertApplication, rejectRedemptionRequest, softDeleteProblem, toggleDeleteProblem, toggleSolutionsVisibility } from "../controllers/admin.controller.js";
+import { adminLogs, approveExpertApplication, approveRedemptionRequest, banUser, expertApplicationRequests, fetchAllUsers, fetchProductsForAdmin, fetchSolutionsForAdmin, redemptionRequests, rejectExpertApplication, rejectRedemptionRequest, softDeleteProblem, toggleDeleteProblem, toggleSolutionsVisibility } from "../controllers/admin.controller.js";
 
 const router = express.Router();
 
@@ -28,5 +28,7 @@ router.get("/problems", verifyToken, authorizeRoles("admin"), fetchProductsForAd
 
 router.get("/solutions", verifyToken, authorizeRoles("admin"), fetchSolutionsForAdmin)
 router.patch("/toggle-solution/:solutionId", verifyToken, authorizeRoles("admin"), toggleSolutionsVisibility)
+
+router.patch("/ban/:userId", verifyToken, authorizeRoles("admin"), banUser)
 
 export default router;

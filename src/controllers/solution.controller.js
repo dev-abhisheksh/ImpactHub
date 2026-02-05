@@ -35,6 +35,10 @@ const createSolution = async (req, res) => {
             return res.status(403).json({ message: "Only Experts are allowed" })
         }
 
+        if (req.user.isBanned && req.user.banExpiresAt > Date.now()) {
+            return res.status(403).json({ message: "User temporary Banned" })
+        }
+
         const solution = await Solution.create({
             answer,
             problemId,

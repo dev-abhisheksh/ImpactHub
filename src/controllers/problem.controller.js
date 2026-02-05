@@ -58,6 +58,10 @@ const createProblem = async (req, res) => {
             )
         ];
 
+        if (req.user.isBanned && req.user.banExpiresAt > Date.now()) {
+            return res.status(403).json({ message: "User temporary Banned" })
+        }
+
         const problem = await Problem.create({
             title,
             description: description,
