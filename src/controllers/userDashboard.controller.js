@@ -4,6 +4,7 @@ import { Solution } from "../models/solution.model.js";
 import { Redemption } from "../models/redemption.model.js";
 import mongoose from "mongoose";
 import { User } from "../models/user.model.js";
+import { uploadToCloudinary } from "../utils/uploadToCloudinary.js";
 
 export const getUserDashboardStats = async (req, res) => {
     try {
@@ -280,7 +281,7 @@ export const toggleProfileVisibility = async (req, res) => {
 export const getMyProfile = async (req, res) => {
     try {
         const userId = req.user.id;
-
+        const uid = new mongoose.Types.ObjectId(userId);
         const user = await User.findById(userId)
             .select("-password -accessToken -__v -isBanned -banExpiresAt -refreshTokens -authProvider");
 
@@ -298,7 +299,7 @@ export const getMyProfile = async (req, res) => {
         });
 
         const totalPointsAgg = await Reputation.aggregate([
-            { $match: { userId: userId } },
+            { $match: { userId: uid } },
             { $group: { _id: null, total: { $sum: "$points" } } }
         ]);
 
@@ -321,7 +322,7 @@ export const getMyProfile = async (req, res) => {
         };
 
         return res.status(200).json({
-            message: "Fetched private profile",
+            message: "Fetched profile",
             profile
         });
 
@@ -330,3 +331,44 @@ export const getMyProfile = async (req, res) => {
         return res.status(500).json({ message: "Failed to fetch profile" });
     }
 };
+
+export const updateMyProfile = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const { fullName, portfolioLink, experience, bio, expertCategories } = req.body;
+
+        const updateFields = {};
+
+        if (fullName !== undefined) updateFields.fullName = fullName;
+        if (portfolioLink !== undefined) updateFields.portfolioLink = portfolioLink;
+        if (experience !== undefined) updateFields.experience = experience;
+        if (bio !== undefined) updateFields.bio = bio;
+        if (expertCategories !== undefined) updateFields.expertCategories = expertCategories;
+
+        // Handle image upload
+        if (req.file) {
+            const result = await uploadToCloudinary(
+                req.file.buffer,
+                "profile-images"
+            );
+
+            updateFields.coverImage = result.secure_url;
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            updateFields,
+            { new: true, runValidators: true }
+        ).select("-password -accessToken -__v -isBanned -banExpiresAt -refreshTokens -authProvider");
+
+        return res.status(200).json({
+            message: "Profile updated successfully",
+            profile: updatedUser
+        });
+    } catch (error) {
+        console.error("Failed to update profile", error);
+        return res.status(500).json({ message: "Failed to update profile" });
+    }
+};
+

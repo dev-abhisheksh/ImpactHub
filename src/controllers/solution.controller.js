@@ -161,7 +161,7 @@ const allSolutionsOfProblem = async (req, res) => {
         if (!problem) return res.status(404).json({ message: "Problem not found" })
 
         const solutions = await Solution.find({ problemId, isDeleted: false })
-            .populate("answeredBy", "fullName role")
+            .populate("answeredBy", "fullName role coverImage")
             .sort({ isAccepted: -1, createdAt: -1 })
             .select("-__v")
             .lean()
