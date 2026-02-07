@@ -86,7 +86,7 @@ const userSchema = new mongoose.Schema(
         bio: {
             type: String,
             trim: true
-        },  
+        },
 
         experience: {
             type: Number,
@@ -100,6 +100,12 @@ const userSchema = new mongoose.Schema(
 
         banExpiresAt: {
             type: Date
+        },
+
+        profileVisibility: {
+            type: String,
+            enum: ["public", "private"],
+            default: "public"
         }
     },
     { timestamps: true }

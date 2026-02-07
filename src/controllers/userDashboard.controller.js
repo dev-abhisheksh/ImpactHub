@@ -1,7 +1,9 @@
 import { Problem } from "../models/problem.model.js";
 import { Reputation } from "../models/reputation.model.js";
 import { Solution } from "../models/solution.model.js";
+import { Redemption } from "../models/redemption.model.js";
 import mongoose from "mongoose";
+import { User } from "../models/user.model.js";
 
 export const getUserDashboardStats = async (req, res) => {
     try {
@@ -124,7 +126,7 @@ export const mySolutions = async (req, res) => {
         return res.status(500).json({ message: "Failed to fetch solutions" });
     }
 };
-import { Redemption } from "../models/redemption.model.js";
+
 
 export const myEarnings = async (req, res) => {
     try {
@@ -176,3 +178,155 @@ export const myRedemptions = async (req, res) => {
         return res.status(500).json({ message: "Failed to fetch redemption logs" })
     }
 }
+
+export const Profile = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        if (!userId) return res.status(400).json({ message: "UserId is required" })
+        const uid = new mongoose.Types.ObjectId(userId);
+
+        const user = await User.findById(userId)
+            .select("-password -accessToken -__v -isBanned -banExpiresAt -refreshTokens -authProvider ");
+
+        if (!user) return res.status(404).json({ message: "User not found" })
+
+        const totalProblemsPosted = await Problem.countDocuments({ createdBy: userId, isDeleted: false });
+        const totalSolutions = await Solution.countDocuments({ answeredBy: userId })
+
+        const totalPointsEarned = await Reputation.aggregate([
+            { $match: { userId: uid } },
+            { $group: { _id: null, total: { $sum: "$points" } } }
+        ])
+        const totalPoints = totalPointsEarned[0]?.total || 0;
+
+
+        const userStats = {
+            totalPoints,
+            totalProblemsPosted,
+            totalSolutions
+        }
+
+        if (req.user.role === "admin") {
+            return res.status(200).json({
+                message: "Fetched all details",
+                user,
+                userStats
+            })
+        }
+
+        if (user.profileVisibility === "private") {
+            const privateProfile = {
+                fullName: user.fullName,
+                email: user.email,
+                bio: user.bio,
+                coverImage: user.coverImage,
+                role: user.role,
+                expertCategories: user.expertCategories,
+                portfolioLink: user.portfolioLink,
+                experience: user.experience,
+                createdAt: user.createdAt,
+            }
+
+            return res.status(200).json({
+                message: "Fetched all details",
+                privateProfile
+            })
+        }
+
+        const publicProfile = {
+            fullName: user.fullName,
+            email: user.email,
+            coverImage: user.coverImage,
+            bio: user.bio,
+            role: user.role,
+            expertCategories: user.expertCategories,
+            portfolioLink: user.portfolioLink,
+            experience: user.experience,
+            createdAt: user.createdAt,
+            userStats
+        }
+
+        return res.status(200).json({
+            message: "Fetched all details",
+            publicProfile
+        })
+
+    } catch (error) {
+        console.log("Failed to fetch details", error)
+        return res.status(500).json({ message: "Failed to fetch details" })
+    }
+}
+
+export const toggleProfileVisibility = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select("profileVisibility")
+        if (!user) return res.status(404).json({ message: "User not found" })
+
+        const toggled = await User.findByIdAndUpdate(
+            req.user._id,
+            { profileVisibility: user.profileVisibility === "public" ? "private" : "public" },
+            { new: true }
+        )
+
+        return res.status(200).json({
+            message: `Profile visibility toggled to ${toggled.profileVisibility === "public" ? "Public" : "Private"}`
+        })
+    } catch (error) {
+        console.error("Failed to toggle profile visibility", error)
+        return res.status(500).json({ message: "Failed to toggle profile visibility" })
+    }
+}
+
+export const getMyProfile = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const user = await User.findById(userId)
+            .select("-password -accessToken -__v -isBanned -banExpiresAt -refreshTokens -authProvider");
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const totalProblemsPosted = await Problem.countDocuments({
+            createdBy: userId,
+            isDeleted: false
+        });
+
+        const totalSolutions = await Solution.countDocuments({
+            answeredBy: userId
+        });
+
+        const totalPointsAgg = await Reputation.aggregate([
+            { $match: { userId: userId } },
+            { $group: { _id: null, total: { $sum: "$points" } } }
+        ]);
+
+        const totalPoints = totalPointsAgg[0]?.total || 0;
+
+        const profile = {
+            fullName: user.fullName,
+            email: user.email,
+            coverImage: user.coverImage,
+            role: user.role,
+            expertCategories: user.expertCategories,
+            portfolioLink: user.portfolioLink,
+            experience: user.experience,
+            profileVisibility: user.profileVisibility,
+            userStats: {
+                totalPoints,
+                totalProblemsPosted,
+                totalSolutions
+            }
+        };
+
+        return res.status(200).json({
+            message: "Fetched private profile",
+            profile
+        });
+
+    } catch (error) {
+        console.log("Failed to fetch my profile", error);
+        return res.status(500).json({ message: "Failed to fetch profile" });
+    }
+};
