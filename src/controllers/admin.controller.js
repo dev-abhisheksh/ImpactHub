@@ -540,7 +540,10 @@ const banUser = async (req, res) => {
             entityId: userId,
             entityType: "User",
             action: "banned_user",
-            meta: {}
+            meta: {
+                bannedUntil: new Date(Date.now() + hours * 3600000),
+                userId: userId,
+            }
         })
 
         return res.status(200).json({
