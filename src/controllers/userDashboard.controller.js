@@ -378,3 +378,21 @@ export const updateMyProfile = async (req, res) => {
     }
 };
 
+export const getMyAvatar = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id)
+            .select("coverImage")
+            .lean();
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        return res.status(200).json({ coverImage: user.coverImage });
+    } catch (error) {
+        console.error(error.message);
+        return res.status(500).json({ message: "Failed to fetch avatar" });
+    }
+};
+
+
