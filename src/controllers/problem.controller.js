@@ -7,6 +7,8 @@ import { generateCategoryWithAi } from "../services/ai.service.js";
 import { generateTagsWithAI } from "../services/tagsGenerationWithAi.servce.js";
 import { client, delRedisCache } from "../utils/redisClient.js";
 import cloudinary from "../utils/cloudinary.js";
+import { logAdminAction } from "../utils/adminLogHelper.js";
+import { AdminLog } from "../models/adminLog.model.js";
 
 const createProblem = async (req, res) => {
     try {
@@ -113,44 +115,42 @@ const updateMyProblem = async (req, res) => {
             return res.status(400).json({ message: "Invalid Problem ID" });
         }
 
-        // First fetch the problem
         const existingProblem = await Problem.findOne({
             _id: problemId,
             isDeleted: false,
         });
 
-        const isOwner = existingProblem.createdBy.toString() === req.user._id.toString();
+        if (!existingProblem) {
+            return res
+                .status(404)
+                .json({ message: "Problem not found" });
+        }
+
+        const isOwner =
+            existingProblem.createdBy.toString() ===
+            req.user._id.toString();
+
         const isAdmin = req.user.role === "admin";
 
         if (!isOwner && !isAdmin) {
             return res.status(403).json({ message: "Access denied" });
         }
 
-        if (!existingProblem) {
-            return res
-                .status(404)
-                .json({ message: "Problem not found or access denied" });
-        }
-
         const updateFields = {};
 
-        // Title
         if (typeof title === "string" && title.trim().length > 0) {
             updateFields.title = title.trim();
         }
 
-        // Description
         if (typeof description === "string" && description.trim().length > 0) {
             updateFields.description = description.trim();
         }
 
-        // Expert only
         if (expertOnly !== undefined) {
             updateFields.expertOnly =
                 expertOnly === true || expertOnly === "true";
         }
 
-        // Tags
         if (tags) {
             try {
                 const parsedTags = JSON.parse(tags);
@@ -162,16 +162,13 @@ const updateMyProblem = async (req, res) => {
             }
         }
 
-        // Image update
         if (req.file) {
-            // Delete old image if exists
             if (existingProblem.bannerImage?.public_id) {
                 await cloudinary.uploader.destroy(
                     existingProblem.bannerImage.public_id
                 );
             }
 
-            // Upload new image
             const result = await uploadToCloudinary(
                 req.file.buffer,
                 "problem-images"
@@ -193,10 +190,23 @@ const updateMyProblem = async (req, res) => {
             { new: true }
         );
 
+        if (isAdmin && !isOwner) {
+            await AdminLog.create({
+                adminId: req.user._id,
+                action: "UPDATE_PROBLEM",
+                entityType: "Problem",
+                entityId: problemId,
+                meta: {
+                    updatedFields: Object.keys(updateFields),
+                    ownerId: existingProblem.createdBy,
+                },
+            });
+        }
+
         await delRedisCache(client, [
             `personalDashboard:${req.user._id}`,
             `problem:${problemId}`,
-            `allProblems:page:*`
+            `allProblems:page:*`,
         ]);
 
         return res.status(200).json({
@@ -208,6 +218,7 @@ const updateMyProblem = async (req, res) => {
         return res.status(500).json({ message: "Failed to update problem" });
     }
 };
+
 
 const getProblems = async (req, res) => {
     try {
