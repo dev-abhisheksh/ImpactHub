@@ -3,6 +3,8 @@ import { User } from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import hashToken from "../utils/hashToken.js";
 import { ExpertApplication } from "../models/expertApplication.model.js";
+import { sendOtpEmail } from "../services/email.service.js";
+import { OTP } from "../models/otp.model.js";
 
 export const generateAccessToken = (user) => {
     return jwt.sign(
@@ -47,23 +49,73 @@ const registerUser = async (req, res) => {
             return res.status(400).json({ message: "User already exists" });
         }
 
+        const otp = Math.floor(100000 + Math.random() * 900000).toString()
+
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        await User.create({
-            fullName: fullName.trim(),
-            email,
-            password: hashedPassword,
-            role: "user",
-        });
+        await OTP.deleteMany({ email })
 
-        return res.status(201).json({
-            message: "User registered successfully. Please login.",
+        await OTP.create({
+            email,
+            otp,
+            fullName: fullName.trim(),
+            password: hashedPassword,
+            expiresAt: new Date(Date.now() + 5 * 60 * 1000)
+        })
+
+        await sendOtpEmail(email, otp)
+
+        // await User.create({
+        //     fullName: fullName.trim(),
+        //     email,
+        //     password: hashedPassword,
+        //     role: "user",
+        // });
+
+        return res.status(200).json({
+            message: "OTP sent to your email",
         });
     } catch (error) {
         console.error("Registration failed:", error);
         return res.status(500).json({ message: "Registration failed" });
     }
 };
+
+const verifyOTP = async (req, res) => {
+    try {
+        let { email, otp } = req.body;
+        if (!email || !otp) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
+
+        email = email.trim().toLowerCase();
+
+        const otpRecord = await OTP.findOne({ email });
+
+        if (!otpRecord) {
+            return res.status(400).json({ message: "Invalid or expired OTP" });
+        }
+
+        if (otpRecord.otp !== otp) return res.status(400).json({ message: "Incorrect OTP" })
+
+        const newUser = await User.create({
+            fullName: otpRecord.fullName,
+            email: otpRecord.email,
+            password: otpRecord.password,
+            role: "user",
+        });
+
+        await OTP.deleteMany({ email });
+
+        return res.status(201).json({
+            message: "Account verified and created successfully",
+            userId: newUser._id,
+        });
+    } catch (error) {
+        console.error("OTP verification failed:", error);
+        return res.status(500).json({ message: "Verification failed" });
+    }
+}
 
 const registerExpert = async (req, res) => {
     try {
@@ -268,5 +320,6 @@ export {
     loginWithPassword,
     refreshAccessToken,
     logoutUser,
-    registerExpert
+    registerExpert,
+    verifyOTP
 }
