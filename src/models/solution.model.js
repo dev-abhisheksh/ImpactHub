@@ -11,7 +11,7 @@ const solutionSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "Problem",
         required: true,
-        index: true
+        // index: true
     },
 
     answeredBy: {
