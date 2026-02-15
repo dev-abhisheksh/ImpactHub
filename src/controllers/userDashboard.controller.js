@@ -316,6 +316,7 @@ export const getMyProfile = async (req, res) => {
             email: user.email,
             coverImage: user.coverImage,
             role: user.role,
+            bio: user.bio,
             expertCategories: user.expertCategories,
             portfolioLink: user.portfolioLink,
             experience: user.experience,
