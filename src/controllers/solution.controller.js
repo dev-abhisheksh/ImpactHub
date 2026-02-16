@@ -104,6 +104,10 @@ const acceptSolution = async (req, res) => {
             return res.status(400).json({ message: "Problem is not open" });
         }
 
+        if (problem.status === "solved") {
+            return res.status(409).json({ message: "Problem is already solved" });
+        }
+
         // Check authorization (must be problem owner or admin)
         if (problem.createdBy.toString() !== req.user._id.toString() && req.user.role !== "admin") {
             return res.status(403).json({ message: "Only problem owner can accept solutions" });
