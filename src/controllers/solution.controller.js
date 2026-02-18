@@ -5,6 +5,7 @@ import { addReputationEvent } from "../services/reputation.service.js";
 import { Reputation } from "../models/reputation.model.js";
 import { client, delRedisCache } from "../utils/redisClient.js";
 import { logAdminAction } from "../utils/adminLogHelper.js";
+import { AdminLog } from "../models/adminLog.model.js";
 
 
 const createSolution = async (req, res) => {
@@ -251,7 +252,7 @@ const reportSolution = async (req, res) => {
                 .json({ message: "Solution already reported" });
         }
 
-        if(solution.isAccepted) {
+        if (solution.isAccepted) {
             return res.status(400).json({ message: "Cannot report an accepted solution" });
         }
 
@@ -264,6 +265,17 @@ const reportSolution = async (req, res) => {
             solutionId,
             type: "reported",
         });
+
+        await AdminLog.create({
+            adminId: req.user._id,
+            action: "report_solution",
+            entityType: "Solution",
+            entityId: solution._id,
+            meta: {
+                reportedBy: req.user._id,
+                problemId: solution.problemId._id
+            }
+        })
 
         return res.status(200).json({
             message: "Solution reported successfully",
