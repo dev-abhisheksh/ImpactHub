@@ -206,7 +206,7 @@ const updateMyProblem = async (req, res) => {
         await delRedisCache(client, [
             `personalDashboard:${req.user._id}`,
             `problem:${problemId}`,
-            `allProblems:page:*`,
+            `problems:page:*`,
         ]);
 
         return res.status(200).json({
