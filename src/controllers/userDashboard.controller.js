@@ -6,6 +6,7 @@ import mongoose from "mongoose";
 import { User } from "../models/user.model.js";
 import { uploadToCloudinary } from "../utils/uploadToCloudinary.js";
 import { client } from "../utils/redisClient.js";
+import { ExpertApplication } from "../models/expertApplication.model.js";
 
 export const getUserDashboardStats = async (req, res) => {
     try {
@@ -389,7 +390,7 @@ export const getMyAvatar = async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
-        return res.status(200).json({ coverImage: user.coverImage, fullName: user.fullName, role: user.role  });
+        return res.status(200).json({ coverImage: user.coverImage, fullName: user.fullName, role: user.role });
     } catch (error) {
         console.error(error.message);
         return res.status(500).json({ message: "Failed to fetch avatar" });
@@ -397,3 +398,49 @@ export const getMyAvatar = async (req, res) => {
 };
 
 
+
+export const submitExpertApplications = async (req, res) => {
+    try {
+        if (req.user.role !== "user") return res.status(400).json({ message: "Only normal users can apply" })
+
+        const { bio, experience, expertCategories, portfolioLink } = req.body;
+        if (!bio || !experience || !expertCategories || !portfolioLink) {
+            return res.status(400).json({ message: "All fields are required" })
+        }
+
+        const existingPending = await ExpertApplication.findOne({
+            userId: req.user._id,
+            status: "pending"
+        })
+
+        if (existingPending) return res.status(400).json({ message: "Application already under review" })
+
+        const application = await ExpertApplication.create({
+            userId: req.user._id,
+            bio,
+            experience,
+            expertCategories,
+            portfolioLink
+        });
+
+        return res.status(201).json({
+            message: "Application submitted",
+            application
+        });
+    } catch (error) {
+        console.error(error)
+        return res.status(500).json({ message: "Server error" });
+    }
+}
+
+export const getMyApplication = async (req, res) => {
+    try {
+        const application = await ExpertApplication.findOne({
+            userId: req.user._id
+        }).sort({ createdAt: -1 });
+        return res.status(200).json({ application });
+    } catch (error) {
+        console.error(error)
+        return res.status(500).json({ message: "Failed to fetch application" });
+    }
+}

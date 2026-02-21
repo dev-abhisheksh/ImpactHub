@@ -1,4 +1,4 @@
-import express from "express";
+import express, { application } from "express";
 import dotenv from 'dotenv'
 import cookieParser from "cookie-parser";
 import authRouter from "./routes/auth.route.js"
@@ -12,6 +12,7 @@ import userRouter from "./routes/user.route.js"
 import adminRouter from "./routes/admin.route.js";
 import chatRouter from "./routes/conversation.route.js"
 import searchRouter from "./routes/search.route.js"
+import applicationRouter from "./routes/expert.routes.js"
 import cors from "cors";
 
 dotenv.config();
@@ -45,5 +46,6 @@ app.use("/api/v1/users", userRouter)
 app.use("/api/v1/admin", adminRouter)
 app.use("/api/v1/chat", chatRouter)
 app.use("/api/v1/search", searchRouter)
+app.use("/api/v1/applications", applicationRouter)
 
 export default app;

@@ -570,6 +570,81 @@ const banUser = async (req, res) => {
     }
 }
 
+const getExpertApplications = async (req, res) => {
+    try {
+        // if (req.user.role !== "admin") return res.status(403).json({ message: "Admins only" })
+
+        const { status = "pending", page = 1, limit = 10 } = req.query;
+
+        const applications = await ExpertApplication.find({ status })
+            .populate("userId", "fullName email reputationPoints")
+            .populate("reviewedBy", "fullName")
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(Number(limit));
+
+        const total = await ExpertApplication.countDocuments({ status });
+
+        return res.status(200).json({
+            applications,
+            total,
+            page: Number(page),
+            pages: Math.ceil(total / limit)
+        });
+    } catch (error) {
+        return res.status(500).json({ message: "Server error" });
+    }
+}
+
+const reviewExpertApplication = async (req, res) => {
+    try {
+        if (req.user.role !== "admin") return res.status(403).json({ message: "Admins Only" })
+
+        const { applicationId } = req.params;
+        const { action } = req.body;
+
+        const application = await ExpertApplication.findById(applicationId)
+        if (!application || application.status !== "pending") {
+            return res.status(400).json({ message: "Invald or already reviewed application" })
+        }
+
+        const user = await User.findById(application.userId)
+        if (!user) return res.status(404).json({ message: "User not found" })
+
+        if (action === "approved") {
+            user.role = "expert"
+            user.isExpertVerified = true
+
+            user.bio = application.bio;
+            user.experience = application.experience;
+            user.expertCategories = application.expertCategories;
+            user.portfolioLink = application.portfolioLink;
+
+            await user.save();
+
+            application.status = "approved";
+            application.reviewedBy = req.user._id;
+            await application.save();
+
+            return res.status(200).json({ message: "Approved successfully" });
+
+        }
+
+        if (action === "rejected") {
+            application.status = "rejected";
+            application.reviewedBy = req.user._id;
+            await application.save();
+
+            return res.status(200).json({ message: "Rejected successfully" });
+        }
+
+        return res.status(400).json({ message: "Invalid action" });
+    } catch (error) {
+        console.error(error)
+        return res.status(500).json({ message: "Server error" });
+    }
+}
+
 export {
     expertApplicationRequests,
     approveExpertApplication,
@@ -584,5 +659,7 @@ export {
     fetchProductsForAdmin,
     fetchSolutionsForAdmin,
     toggleSolutionsVisibility,
-    banUser
+    banUser,
+    getExpertApplications,
+    reviewExpertApplication
 }

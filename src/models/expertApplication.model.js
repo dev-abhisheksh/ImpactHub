@@ -41,6 +41,12 @@ const expertApplicationSchema = new mongoose.Schema({
 
 }, { timestamps: true })
 
-expertApplicationSchema.index({ userId: 1 }, { unique: true });
+expertApplicationSchema.index(
+    { userId: 1, status: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { status: "pending" }
+    }
+);
 
 export const ExpertApplication = mongoose.model("ExpertApplication", expertApplicationSchema);
