@@ -572,7 +572,7 @@ const banUser = async (req, res) => {
 
 const getExpertApplications = async (req, res) => {
     try {
-        // if (req.user.role !== "admin") return res.status(403).json({ message: "Admins only" })
+        if (req.user.role !== "admin") return res.status(403).json({ message: "Admins only" })
 
         const { status = "pending", page = 1, limit = 10 } = req.query;
 
@@ -596,6 +596,7 @@ const getExpertApplications = async (req, res) => {
     }
 }
 
+
 const reviewExpertApplication = async (req, res) => {
     try {
         if (req.user.role !== "admin") return res.status(403).json({ message: "Admins Only" })
@@ -605,16 +606,16 @@ const reviewExpertApplication = async (req, res) => {
 
         const application = await ExpertApplication.findById(applicationId)
         if (!application || application.status !== "pending") {
-            return res.status(400).json({ message: "Invald or already reviewed application" })
+            return res.status(400).json({ message: "Invalid or already reviewed application" })
         }
 
         const user = await User.findById(application.userId)
         if (!user) return res.status(404).json({ message: "User not found" })
 
         if (action === "approved") {
+            // Update User profile to Expert status
             user.role = "expert"
             user.isExpertVerified = true
-
             user.bio = application.bio;
             user.experience = application.experience;
             user.expertCategories = application.expertCategories;
@@ -626,14 +627,39 @@ const reviewExpertApplication = async (req, res) => {
             application.reviewedBy = req.user._id;
             await application.save();
 
-            return res.status(200).json({ message: "Approved successfully" });
+            // CREATE ADMIN LOG
+            await AdminLog.create({
+                adminId: req.user._id,
+                action: "Approved Expert Application",
+                entityType: "ExpertApplication",
+                entityId: application._id,
+                meta: {
+                    userId: user._id,
+                    fullName: user.fullName,
+                    categories: application.expertCategories
+                }
+            });
 
+            return res.status(200).json({ message: "Approved successfully" });
         }
 
         if (action === "rejected") {
             application.status = "rejected";
             application.reviewedBy = req.user._id;
             await application.save();
+
+            // CREATE ADMIN LOG
+            await AdminLog.create({
+                adminId: req.user._id,
+                action: "Rejected Expert Application",
+                entityType: "ExpertApplication",
+                entityId: application._id,
+                meta: {
+                    userId: user._id,
+                    fullName: user.fullName,
+                    reason: "Application did not meet criteria" // Optional: fetch from req.body if you add a reason field
+                }
+            });
 
             return res.status(200).json({ message: "Rejected successfully" });
         }

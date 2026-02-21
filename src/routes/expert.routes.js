@@ -7,7 +7,7 @@ import { getExpertApplications, reviewExpertApplication } from "../controllers/a
 const router = express.Router()
 
 router.post("/apply", verifyToken, authorizeRoles("user"), submitExpertApplications)
-router.get("/", getExpertApplications)
+router.get("/", verifyToken, authorizeRoles("admin"), getExpertApplications)
 router.patch("/:applicationId/review", verifyToken, authorizeRoles("admin"), reviewExpertApplication)
 router.get("/my-application", verifyToken, getMyApplication)
 
