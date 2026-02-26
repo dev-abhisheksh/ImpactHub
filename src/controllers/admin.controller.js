@@ -532,22 +532,28 @@ const toggleSolutionsVisibility = async (req, res) => {
 
 const banUser = async (req, res) => {
     try {
-        if (req.user.role !== "admin") return res.status(403).json({ message: "Admins only" })
+        if (req.user.role !== "admin") return res.status(403).json({ message: "Admins only" });
+
         const { userId } = req.params;
-        const { banTime } = req.body;
-        if (!banTime || !userId) return res.status(400).json({ message: "banTime and UserId are required for banning a user" })
+        const { banTime, reason } = req.body;
+
+        if (!banTime || !userId) return res.status(400).json({ message: "banTime and UserId are required" });
+        if (!reason || !reason.trim()) return res.status(400).json({ message: "Ban reason is required" });
 
         const hours = Number(banTime);
         if (!hours || hours <= 0) return res.status(400).json({ message: "Invalid banTime" });
 
+        const bannedUntil = new Date(Date.now() + hours * 60 * 60 * 1000);
+
         await User.findByIdAndUpdate(userId, {
-            banExpiresAt: new Date(Date.now() + hours * 60 * 60 * 1000)
+            banExpiresAt: bannedUntil,
+            banReason: reason.trim(),
         });
 
         await Notification.create({
             userId,
-            message: `You are banned for ${hours} hours until ${new Date(Date.now() + hours * 3600000).toLocaleString()}`
-        })
+            message: `You have been banned for ${hours} hours until ${bannedUntil.toLocaleString()}. Reason: ${reason.trim()}`
+        });
 
         await AdminLog.create({
             adminId: req.user._id,
@@ -555,20 +561,19 @@ const banUser = async (req, res) => {
             entityType: "User",
             action: "banned_user",
             meta: {
-                bannedUntil: new Date(Date.now() + hours * 3600000),
-                userId: userId,
+                bannedUntil,
+                userId,
+                reason: reason.trim(),
             }
-        })
+        });
 
-        return res.status(200).json({
-            message: `User banned for ${banTime} hours`
-        })
+        return res.status(200).json({ message: `User banned for ${hours} hours` });
 
     } catch (error) {
-        console.error("Failed to ban user", error)
-        return res.status(500).json({ message: "Failed to ban user" })
+        console.error("Failed to ban user", error);
+        return res.status(500).json({ message: "Failed to ban user" });
     }
-}
+};
 
 const getExpertApplications = async (req, res) => {
     try {
