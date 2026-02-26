@@ -6,6 +6,7 @@ import { Reputation } from "../models/reputation.model.js";
 import { client, delRedisCache } from "../utils/redisClient.js";
 import { logAdminAction } from "../utils/adminLogHelper.js";
 import { AdminLog } from "../models/adminLog.model.js";
+import { validateSolutionWithAI } from "../services/ai.service.js";
 
 
 const createSolution = async (req, res) => {
@@ -23,7 +24,7 @@ const createSolution = async (req, res) => {
 
         answer = answer.trim();
 
-        if (answer === null || answer === "") {
+        if (!answer) {
             return res.status(400).json({ message: "Answer should not be empty" })
         }
 
@@ -32,32 +33,58 @@ const createSolution = async (req, res) => {
         }
 
         const problem = await Problem.findOne({ _id: problemId, isDeleted: false });
-        if (!problem) return res.status(404).json({ message: "Problem not found!" })
+        if (!problem) {
+            return res.status(404).json({ message: "Problem not found!" })
+        }
 
         if (problem.expertOnly && req.user.role !== "expert") {
             return res.status(403).json({ message: "Only Experts are allowed" })
         }
 
+        // ✅ AI Validation Step (NEW)
+        const validation = await validateSolutionWithAI({
+            problemTitle: problem.title,
+            problemDescription: problem.description,
+            solutionText: answer
+        });
+
+        if (!validation.isRelevant) {
+            return res.status(400).json({
+                message: "Solution is not relevant to the problem."
+            });
+        }
+
+        if (!validation.isAppropriate) {
+            return res.status(400).json({
+                message: "Solution contains spam or inappropriate content."
+            });
+        }
+
+        // ✅ Only create after passing validation
         const solution = await Solution.create({
             answer,
             problemId,
             answeredBy: req.user._id,
-        })
+        });
 
-        await solution.populate("answeredBy", "fullName")
+        await solution.populate("answeredBy", "fullName");
 
-        await addReputationEvent({ userId: req.user._id, solutionId: solution._id, type: "commented" })
+        await addReputationEvent({
+            userId: req.user._id,
+            solutionId: solution._id,
+            type: "commented"
+        });
 
         await delRedisCache(client, [
             `personalDashboard:${req.user._id}`,
             `personalDashboard:${problem.createdBy}`,
             `solutions:problemId:${problemId}`
-        ])
+        ]);
 
         return res.status(201).json({
             message: "Solution created successfully",
-            solution //testing purpose later ill remove
-        })
+            solution
+        });
 
     } catch (error) {
         console.error("Failed to create a solution", error);
@@ -72,7 +99,7 @@ const createSolution = async (req, res) => {
             message: "Failed to create a solution"
         });
     }
-}
+};
 
 const acceptSolution = async (req, res) => {
     try {

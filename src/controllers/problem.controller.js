@@ -12,7 +12,7 @@ import { AdminLog } from "../models/adminLog.model.js";
 
 const createProblem = async (req, res) => {
     try {
-        let { title, description, expertOnly, } = req.body;
+        let { title, description, expertOnly } = req.body;
 
         if (!title || !description) {
             return res.status(400).json({ message: "Title and description are required" });
@@ -27,28 +27,43 @@ const createProblem = async (req, res) => {
         title = title.trim();
         description = description.trim();
 
-        // Generate both specific and broad categories
+        // Default categories
         let specificCategory = "general";
         let broadCategory = "environment";
 
         try {
             const categories = await generateCategoryWithAi({ title, description });
+
+            // 🔒 BLOCK out_of_scope
+            if (categories.specificCategory === "out_of_scope") {
+                return res.status(400).json({
+                    message: "Only sustainability-related problems are allowed."
+                });
+            }
+
             specificCategory = categories.specificCategory;
             broadCategory = categories.broadCategory;
+
         } catch (error) {
             console.error("AI category generation failed:", error);
         }
 
         let tags = [];
         try {
-            tags = await generateTagsWithAI({ title, description, category: specificCategory });
+            tags = await generateTagsWithAI({
+                title,
+                description,
+                category: specificCategory
+            });
 
             if (typeof tags === 'string') {
                 tags = JSON.parse(tags);
             }
+
             if (!Array.isArray(tags)) {
                 tags = [];
             }
+
         } catch (error) {
             console.error("AI tags generation failed:", error);
             tags = [];
@@ -64,19 +79,19 @@ const createProblem = async (req, res) => {
 
         const problem = await Problem.create({
             title,
-            description: description,
-            category: specificCategory,        // Specific category for display
-            expertCategory: broadCategory,     // Broad category for expert matching
+            description,
+            category: specificCategory,
+            expertCategory: broadCategory,
             tags: normalizedTags,
             expertOnly: expertOnly === true || expertOnly === 'true',
             createdBy: req.user._id,
             bannerImage
         });
 
-        // Find experts using BROAD category for better matching
+        // Notify experts (broad category matching)
         const experts = await User.find({
             role: "expert",
-            expertCategories: broadCategory  // Match using broad category
+            expertCategories: broadCategory
         }).select("_id");
 
         if (experts.length > 0) {
@@ -89,11 +104,11 @@ const createProblem = async (req, res) => {
             );
         }
 
+        // ✅ Correct cache invalidation for CREATE
         await delRedisCache(client, [
-            `personalDashboard:${req.user._id}`,
-            `personalDashboard:${problem.createdBy}`,
-            `allProblems:page:*`
-        ])
+            `personalDashboard:${req.user._id}`, // creator dashboard
+            `problems:page:*`                    // refresh listings
+        ]);
 
         return res.status(201).json({
             message: "Problem created successfully",
