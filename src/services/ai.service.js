@@ -47,48 +47,64 @@ ${text}
 // ===================== CATEGORY GENERATION =====================
 
 const SPECIFIC_CATEGORIES = [
-    "water conservation",
+    // 🌊 WATER
     "water scarcity",
-    "water pollution",
-    "energy efficiency",
-    "energy wastage",
-    "fossil dependence",
-    "waste management",
+    "groundwater depletion",
+    "industrial water contamination",
+    "sewage discharge",
+    "chemical runoff contamination",
+    "river ecosystem damage",
+    "wastewater mismanagement",
+    "flooding",
+
+    // ♻ WASTE
     "plastic waste",
-    "improper waste segregation",
     "e-waste dumping",
     "landfill overflow",
-    "single-use plastics",
-    "food waste",
-    "food insecurity",
-    "sustainable agriculture",
-    "crop wastage",
-    "chemical overuse",
-    "soil degradation",
+    "improper waste segregation",
+    "open waste burning",
+
+    // 🌫 AIR
     "air pollution",
+    "vehicular emissions",
+    "industrial emissions",
+    "dust pollution",
     "noise pollution",
-    "urban flooding",
-    "traffic congestion",
-    "climate impacts",
+
+    // 🌱 AGRICULTURE & LAND
+    "soil degradation",
+    "chemical overuse",
+    "crop wastage",
+    "deforestation",
+    "unsustainable farming",
+
+    // ⚡ ENERGY
+    "fossil fuel dependence",
+    "energy inefficiency",
+    "diesel generator emissions",
+    "renewable energy gaps",
+
+    // 🌍 CLIMATE
     "heatwaves",
-    "low awareness",
-    "weak enforcement",
-    "overconsumption",
-    "eco-friendly living",
-    "urban sustainability"
+    "carbon emissions",
+    "climate adaptation failure",
+    "extreme weather impact",
+
+    // 🏙 URBAN
+    "urban flooding",
+    "poor drainage systems",
+    "unplanned urbanization",
+    "infrastructure stress"
 ];
 
 const BROAD_CATEGORIES = [
     "water",
-    "energy",
     "waste",
-    "food",
-    "agriculture",
     "air",
+    "agriculture",
+    "energy",
     "climate",
-    "urban",
-    "pollution",
-    "environment"
+    "urban"
 ];
 
 // -------------------------
@@ -146,22 +162,30 @@ Description: ${description}
 export const generateCategoryWithAi = async ({ title, description }) => {
 
     const prompt = `
-You are a sustainability problem classifier.
+You are an expert environmental analyst.
 
-Choose EXACTLY ONE specificCategory from:
-${SPECIFIC_CATEGORIES.join(", ")}
+Your task is to classify the PRIMARY environmental impact of the issue.
 
-Choose EXACTLY ONE broadCategory from:
-${BROAD_CATEGORIES.join(", ")}
+Important rules:
+- Choose the category that best represents the MAIN environmental damage.
+- Do NOT classify based only on keywords.
+- Avoid generic matches if a more precise category exists.
+- The specificCategory must represent the core environmental issue.
+- The broadCategory must logically match the specificCategory.
 
-If the issue is NOT sustainability-related,
-return:
+SPECIFIC CATEGORIES:
+${SPECIFIC_CATEGORIES.map(c => `- ${c}`).join("\n")}
+
+BROAD CATEGORIES:
+${BROAD_CATEGORIES.map(c => `- ${c}`).join("\n")}
+
+If the issue is NOT sustainability-related, return:
 {"specificCategory":"out_of_scope","broadCategory":"none"}
 
 Title: ${title}
 Description: ${description}
 
-Return ONLY JSON in this format:
+Return ONLY valid JSON in this exact format:
 {"specificCategory":"category","broadCategory":"category"}
 `;
 
@@ -185,14 +209,27 @@ Return ONLY JSON in this format:
     }
 
     const data = await res.json();
-    let text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    const candidate = data?.candidates?.[0];
+
+    if (!candidate || !candidate.content || !candidate.content.parts) {
+        console.log("Gemini returned no usable candidate:", JSON.stringify(data, null, 2));
+        return fallbackCategory();
+    }
+
+    // Join all text parts safely
+    let text = candidate.content.parts
+        .map(p => p.text || "")
+        .join("")
+        .trim();
+
+    console.log("RAW AI RESPONSE:", text);
 
     if (!text) {
         return fallbackCategory();
     }
 
-    text = text.trim();
-    text = text.replace(/```json\n?/g, "").replace(/```\n?/g, "");
+    text = text.trim().replace(/```json\n?/g, "").replace(/```\n?/g, "");
 
     try {
         const parsed = JSON.parse(text);
@@ -200,7 +237,7 @@ Return ONLY JSON in this format:
         let specific = parsed.specificCategory?.trim().toLowerCase();
         let broad = parsed.broadCategory?.trim().toLowerCase();
 
-        // 🔒 Handle out_of_scope explicitly
+        // Handle out_of_scope
         if (specific === "out_of_scope") {
             return {
                 specificCategory: "out_of_scope",
@@ -208,18 +245,23 @@ Return ONLY JSON in this format:
             };
         }
 
-        // 🔒 Strict validation
-        if (!SPECIFIC_CATEGORIES.includes(specific)) {
-            specific = "low awareness";
-        }
+        // 🔥 Flexible specific matching
+        const matchedSpecific =
+            SPECIFIC_CATEGORIES.find(c => c.toLowerCase() === specific) ||
+            SPECIFIC_CATEGORIES.find(c => specific?.includes(c.toLowerCase())) ||
+            SPECIFIC_CATEGORIES.find(c => c.toLowerCase().includes(specific || "")) ||
+            null;
 
-        if (!BROAD_CATEGORIES.includes(broad)) {
-            broad = "environment";
-        }
+        // 🔥 Flexible broad matching
+        const matchedBroad =
+            BROAD_CATEGORIES.find(c => c.toLowerCase() === broad) ||
+            BROAD_CATEGORIES.find(c => broad?.includes(c.toLowerCase())) ||
+            BROAD_CATEGORIES.find(c => c.toLowerCase().includes(broad || "")) ||
+            null;
 
         return {
-            specificCategory: specific,
-            broadCategory: broad
+            specificCategory: matchedSpecific || SPECIFIC_CATEGORIES[0],
+            broadCategory: matchedBroad || BROAD_CATEGORIES[0]
         };
 
     } catch (err) {
@@ -229,8 +271,8 @@ Return ONLY JSON in this format:
 };
 
 const fallbackCategory = () => ({
-    specificCategory: "low awareness",
-    broadCategory: "environment"
+    specificCategory: SPECIFIC_CATEGORIES[0],
+    broadCategory: BROAD_CATEGORIES[0]
 });
 
 
@@ -269,6 +311,7 @@ Description: ${description}
 
     const data = await res.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    console.log("RAW AI RESPONSE:", text);
 
     if (!text) {
         throw new Error("Gemini returned empty tags response");

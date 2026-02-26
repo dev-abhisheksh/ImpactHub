@@ -27,14 +27,12 @@ const createProblem = async (req, res) => {
         title = title.trim();
         description = description.trim();
 
-        // Default categories
         let specificCategory = "general";
         let broadCategory = "environment";
 
         try {
             const categories = await generateCategoryWithAi({ title, description });
 
-            // 🔒 BLOCK out_of_scope
             if (categories.specificCategory === "out_of_scope") {
                 return res.status(400).json({
                     message: "Only sustainability-related problems are allowed."
@@ -45,50 +43,25 @@ const createProblem = async (req, res) => {
             broadCategory = categories.broadCategory;
 
         } catch (error) {
-            console.error("AI category generation failed:", error);
-        }
-
-        let tags = [];
-        try {
-            tags = await generateTagsWithAI({
-                title,
-                description,
-                category: specificCategory
+            console.error("AI category generation failed:", error.message);
+            console.error("❌ FULL AI ERROR:", {
+                message: error.message,
+                stack: error.stack,
+                apiKey: process.env.GEMINI_API_KEY ? "present" : "MISSING",
             });
-
-            if (typeof tags === 'string') {
-                tags = JSON.parse(tags);
-            }
-
-            if (!Array.isArray(tags)) {
-                tags = [];
-            }
-
-        } catch (error) {
-            console.error("AI tags generation failed:", error);
-            tags = [];
         }
-
-        const normalizedTags = [
-            ...new Set(
-                tags
-                    .map(t => String(t).toLowerCase().trim())
-                    .filter(t => t.length > 0 && !t.includes(" "))
-            )
-        ];
 
         const problem = await Problem.create({
             title,
             description,
             category: specificCategory,
             expertCategory: broadCategory,
-            tags: normalizedTags,
+            tags: [],
             expertOnly: expertOnly === true || expertOnly === 'true',
             createdBy: req.user._id,
             bannerImage
         });
 
-        // Notify experts (broad category matching)
         const experts = await User.find({
             role: "expert",
             expertCategories: broadCategory
@@ -104,10 +77,9 @@ const createProblem = async (req, res) => {
             );
         }
 
-        // ✅ Correct cache invalidation for CREATE
         await delRedisCache(client, [
-            `personalDashboard:${req.user._id}`, // creator dashboard
-            `problems:page:*`                    // refresh listings
+            `personalDashboard:${req.user._id}`,
+            `problems:page:*`
         ]);
 
         return res.status(201).json({
