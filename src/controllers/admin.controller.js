@@ -3,9 +3,11 @@ import { ExpertApplication } from "../models/expertApplication.model.js"
 import { Notification } from "../models/notification.model.js"
 import { Problem } from "../models/problem.model.js"
 import { Redemption } from "../models/redemption.model.js"
+import { Report } from "../models/report.model.js"
 import { Reputation } from "../models/reputation.model.js"
 import { Solution } from "../models/solution.model.js"
 import { User } from "../models/user.model.js"
+import { addReputationEvent } from "../services/reputation.service.js"
 import { isUserBanned } from "../utils/isUserBanned.js"
 import { client, delRedisCache } from "../utils/redisClient.js"
 
@@ -676,6 +678,76 @@ const reviewExpertApplication = async (req, res) => {
     }
 }
 
+const reviewReport = async (req, res) => {
+    const { reportId } = req.params;
+    const { decision, adminNote } = req.body;
+
+    const report = await Report.findById(reportId);
+
+    if (!report) {
+        return res.status(404).json({ message: "Report not found" });
+    }
+
+    report.status = decision;
+    report.reviewedBy = req.user._id;
+    report.reviewedAt = new Date();
+    report.adminNote = adminNote;
+
+    await report.save();
+
+    if (decision === "approved") {
+        await addReputationEvent({
+            userId: report.reportedUserId,
+            solutionId: report.solutionId,
+            type: "reported",
+        });
+
+        await Solution.findByIdAndUpdate(report.solutionId, {
+            isReported: true,
+            isDeleted: true
+        });
+    }
+
+    await AdminLog.create({
+        adminId: req.user._id,
+        action: `Reviewed report - ${decision}`,
+        entityType: "Report",
+        entityId: report._id,
+        meta: {
+            reportedUserId: report.reportedUserId,
+            reason: report.reason,
+            description: report.description,
+            adminNote
+        }
+    })
+
+    return res.status(200).json({ message: "Report reviewed" });
+};
+
+const allPendingReports = async (req, res) => {
+    try {
+        if (req.user.role !== "admin") return res.status(403).json({ message: "Admins only" })
+
+        const reports = await Report.find({ status: "pending" })
+        if (reports.length === 0) {
+            return res.status(200).json({
+                message: "Fetched all pending reports",
+                count: 0,
+                reports
+            })
+        }
+
+        return res.status(200).json({
+            message: "Fetched all pending reports",
+            count: reports.length,
+            reports
+        })
+    } catch (error) {
+        console.error("Failed to fetch reports", error)
+        return res.status(500).json({ message: "Failed to fetch reports" })
+    }
+}
+
 export {
     expertApplicationRequests,
     approveExpertApplication,
@@ -692,5 +764,7 @@ export {
     toggleSolutionsVisibility,
     banUser,
     getExpertApplications,
-    reviewExpertApplication
+    reviewExpertApplication,
+    reviewReport,
+    allPendingReports
 }

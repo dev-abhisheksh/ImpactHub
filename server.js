@@ -8,6 +8,7 @@ import { Solution } from "./src/models/solution.model.js";
 import { Problem } from "./src/models/problem.model.js";
 import { Conversation } from "./src/models/conversation.model.js";
 import { Message } from "./src/models/message.model.js";
+import { client, delRedisCache } from "./src/utils/redisClient.js";
 
 dotenv.config();
 connectDB();
@@ -30,6 +31,9 @@ io.on("connection", (socket) => {
         const solution = await Solution.findById(solutionId);
         if (!solution || solution.problemId.toString() !== problemId) return;
 
+        // Feature 1: Only allow chat on accepted solutions
+        if (!solution.isAccepted) return;
+
         if (
             problem.createdBy.toString() !== userId &&
             solution.answeredBy.toString() !== userId
@@ -45,6 +49,12 @@ io.on("connection", (socket) => {
             },
             { upsert: true, new: true }
         );
+
+        // Feature 3: Invalidate conversation list cache for both participants
+        await delRedisCache(client, [
+            `conversations:${problem.createdBy}`,
+            `conversations:${solution.answeredBy}`
+        ]);
 
         socket.join(conversation._id.toString());
         socket.emit("conversation-started", conversation);
@@ -67,6 +77,12 @@ io.on("connection", (socket) => {
             senderRole: convo.expertId.toString() === userId ? "expert" : "user",
             content
         });
+
+        // Feature 3: Invalidate conversation list cache so lastMessage updates
+        await delRedisCache(client, [
+            `conversations:${convo.userId}`,
+            `conversations:${convo.expertId}`
+        ]);
 
         io.to(conversationId).emit("new-message", message);
     });

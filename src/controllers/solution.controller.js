@@ -8,6 +8,7 @@ import { logAdminAction } from "../utils/adminLogHelper.js";
 import { AdminLog } from "../models/adminLog.model.js";
 import { validateSolutionWithAI } from "../services/ai.service.js";
 import { Vote } from "../models/vote.model.js";
+import { Report } from "../models/report.model.js";
 
 
 const createSolution = async (req, res) => {
@@ -165,7 +166,9 @@ const acceptSolution = async (req, res) => {
             `personalDashboard:${solution.answeredBy}`,
             `personalDashboard:${problem.createdBy}`,
             `solutions:problemId:${solution.problemId}`,
-            `allProblems:page:*`
+            `allProblems:page:*`,
+            `conversations:${problem.createdBy}`,
+            `conversations:${solution.answeredBy}`
         ])
 
         return res.status(200).json({
@@ -186,14 +189,13 @@ const acceptSolution = async (req, res) => {
 const allSolutionsOfProblem = async (req, res) => {
     try {
         const { problemId } = req.params;
-        const userId = req.user._id; // make sure verifyToken runs on this route
+        const userId = req.user._id;
 
         if (!problemId) return res.status(400).json({ message: "Problem ID is required" });
         if (!mongoose.Types.ObjectId.isValid(problemId)) {
             return res.status(400).json({ message: "Invalid problemID" });
         }
 
-        // Cache key per user so votes aren't shared across users
         const cacheKey = `solutions:problemId:${problemId}:userId:${userId}`;
         const cached = await client.get(cacheKey);
         if (cached && cached !== "") {
@@ -217,7 +219,6 @@ const allSolutionsOfProblem = async (req, res) => {
 
         const repMap = Object.fromEntries(repAgg.map(r => [r._id.toString(), r.total]));
 
-        // Fetch all votes by this user for these solutions in one query
         const solutionIds = solutions.map(s => s._id);
         const userVotes = await Vote.find({ userId, solutionId: { $in: solutionIds } }).lean();
         const voteMap = Object.fromEntries(userVotes.map(v => [v.solutionId.toString(), v.type]));
@@ -247,86 +248,45 @@ const allSolutionsOfProblem = async (req, res) => {
 };
 
 const reportSolution = async (req, res) => {
-    try {
-        const { solutionId } = req.params;
+    const { solutionId } = req.params;
+    const { reason, description } = req.body;
 
-        if (!solutionId) {
-            return res.status(400).json({ message: "Solution ID is required" });
-        }
+    const solution = await Solution.findById(solutionId)
+        .populate("problemId", "createdBy");
 
-        if (!mongoose.Types.ObjectId.isValid(solutionId)) {
-            return res.status(400).json({ message: "Invalid Solution ID" });
-        }
-
-        const solution = await Solution.findById(solutionId)
-            .populate("problemId", "createdBy");
-
-        if (!solution) {
-            return res.status(404).json({ message: "Solution not found" });
-        }
-
-        const isProblemOwner =
-            solution.problemId.createdBy.equals(req.user._id);
-
-        const isAdmin = req.user.role === "admin";
-
-        if (!isProblemOwner && !isAdmin) {
-            return res.status(403).json({
-                message: "Not authorized to report this solution",
-            });
-        }
-
-        if (solution.answeredBy.equals(req.user._id)) {
-            return res
-                .status(400)
-                .json({ message: "Cannot report your own solution" });
-        }
-
-        // prevent duplicate reporting
-        if (solution.isReported) {
-            return res
-                .status(400)
-                .json({ message: "Solution already reported" });
-        }
-
-        if (solution.isAccepted) {
-            return res.status(400).json({ message: "Cannot report an accepted solution" });
-        }
-
-        // mark solution as reported
-        solution.isReported = true;
-        await solution.save();
-
-        await addReputationEvent({
-            userId: solution.answeredBy,
-            solutionId,
-            type: "reported",
-        });
-
-        await AdminLog.create({
-            adminId: req.user._id,
-            action: "report_solution",
-            entityType: "Solution",
-            entityId: solution._id,
-            meta: {
-                reportedBy: req.user._id,
-                problemId: solution.problemId._id
-            }
-        })
-
-        return res.status(200).json({
-            message: "Solution reported successfully",
-        });
-    } catch (error) {
-        console.error("Operation failed", error);
-        return res.status(500).json({ message: "Operation failed" });
+    if (!solution) {
+        return res.status(404).json({ message: "Solution not found" });
     }
+
+    const isProblemOwner =
+        solution.problemId.createdBy.equals(req.user._id);
+
+    const isAdmin = req.user.role === "admin";
+
+    if (!isProblemOwner && !isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+    }
+
+    if (solution.answeredBy.equals(req.user._id)) {
+        return res.status(400).json({ message: "Cannot report own solution" });
+    }
+
+    await Report.create({
+        solutionId,
+        reportedUserId: solution.answeredBy,
+        reportedBy: req.user._id,
+        reason,
+        description
+    });
+
+    return res.status(201).json({ message: "Report submitted for review" });
 };
+
 
 
 export {
     createSolution,
     acceptSolution,
     allSolutionsOfProblem,
-    reportSolution
+    reportSolution,
 }

@@ -30,4 +30,7 @@ const messageSchema = new mongoose.Schema({
     }
 }, { timestamps: true })
 
+// Feature 4: Compound index for fast, ordered message retrieval
+messageSchema.index({ conversationId: 1, createdAt: 1 });
+
 export const Message = mongoose.model("Message", messageSchema)
