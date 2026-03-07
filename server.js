@@ -22,69 +22,84 @@ const io = new Server(server, {
 socketAuth(io);
 
 io.on("connection", (socket) => {
+    console.log(`✅ Socket connected: ${socket.id} | user: ${socket.user._id}`);
+
     socket.on("start-conversation", async ({ problemId, solutionId }) => {
-        const userId = socket.user._id;
+        try {
+            console.log(`📩 start-conversation | problemId: ${problemId} | solutionId: ${solutionId}`);
+            const userId = socket.user._id;
 
-        const problem = await Problem.findOne({ _id: problemId, isDeleted: false });
-        if (!problem || problem.status === "closed") return;
+            const problem = await Problem.findOne({ _id: problemId, isDeleted: false });
+            if (!problem) { console.log("❌ Problem not found"); return; }
+            if (problem.status === "closed") { console.log("❌ Problem is closed"); return; }
 
-        const solution = await Solution.findById(solutionId);
-        if (!solution || solution.problemId.toString() !== problemId) return;
+            const solution = await Solution.findById(solutionId);
+            if (!solution) { console.log("❌ Solution not found"); return; }
+            if (solution.problemId.toString() !== problemId) { console.log("❌ Solution doesn't belong to problem"); return; }
 
-        // Feature 1: Only allow chat on accepted solutions
-        if (!solution.isAccepted) return;
+            if (!solution.isAccepted) { console.log("❌ Solution is NOT accepted"); return; }
 
-        if (
-            problem.createdBy.toString() !== userId &&
-            solution.answeredBy.toString() !== userId
-        ) return;
+            if (
+                problem.createdBy.toString() !== userId &&
+                solution.answeredBy.toString() !== userId
+            ) { console.log("❌ User is neither problem owner nor solution provider"); return; }
 
-        const conversation = await Conversation.findOneAndUpdate(
-            { problemId, solutionId },
-            {
-                $setOnInsert: {
-                    userId: problem.createdBy,
-                    expertId: solution.answeredBy
-                }
-            },
-            { upsert: true, new: true }
-        );
+            const conversation = await Conversation.findOneAndUpdate(
+                { problemId, solutionId },
+                {
+                    $setOnInsert: {
+                        userId: problem.createdBy,
+                        expertId: solution.answeredBy
+                    }
+                },
+                { upsert: true, new: true }
+            );
 
-        // Feature 3: Invalidate conversation list cache for both participants
-        await delRedisCache(client, [
-            `conversations:${problem.createdBy}`,
-            `conversations:${solution.answeredBy}`
-        ]);
+            await delRedisCache(client, [
+                `conversations:${problem.createdBy}`,
+                `conversations:${solution.answeredBy}`
+            ]);
 
-        socket.join(conversation._id.toString());
-        socket.emit("conversation-started", conversation);
+            socket.join(conversation._id.toString());
+            socket.emit("conversation-started", conversation);
+            console.log(`✅ conversation-started | conversationId: ${conversation._id}`);
+        } catch (err) {
+            console.error("💥 start-conversation error:", err);
+        }
     });
 
     socket.on("send-message", async ({ conversationId, content }) => {
-        const userId = socket.user._id;
+        try {
+            const userId = socket.user._id;
 
-        const convo = await Conversation.findById(conversationId);
-        if (!convo || convo.status !== "open") return;
+            const convo = await Conversation.findById(conversationId);
+            if (!convo || convo.status !== "open") return;
 
-        if (
-            convo.userId.toString() !== userId &&
-            convo.expertId.toString() !== userId
-        ) return;
+            if (
+                convo.userId.toString() !== userId &&
+                convo.expertId.toString() !== userId
+            ) return;
 
-        const message = await Message.create({
-            conversationId,
-            senderId: userId,
-            senderRole: convo.expertId.toString() === userId ? "expert" : "user",
-            content
-        });
+            const message = await Message.create({
+                conversationId,
+                senderId: userId,
+                senderRole: convo.expertId.toString() === userId ? "expert" : "user",
+                content
+            });
 
-        // Feature 3: Invalidate conversation list cache so lastMessage updates
-        await delRedisCache(client, [
-            `conversations:${convo.userId}`,
-            `conversations:${convo.expertId}`
-        ]);
+            await delRedisCache(client, [
+                `conversations:${convo.userId}`,
+                `conversations:${convo.expertId}`
+            ]);
 
-        io.to(conversationId).emit("new-message", message);
+            io.to(conversationId).emit("new-message", message);
+        } catch (err) {
+            console.error("💥 send-message error:", err);
+        }
+    });
+
+    socket.on("disconnect", (reason) => {
+        console.log(`🔌 Socket disconnected: ${socket.id} | reason: ${reason}`);
     });
 });
 
