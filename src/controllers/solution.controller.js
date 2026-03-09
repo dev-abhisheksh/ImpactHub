@@ -43,7 +43,6 @@ const createSolution = async (req, res) => {
             return res.status(403).json({ message: "Only Experts are allowed" })
         }
 
-        // ✅ AI Validation Step (NEW)
         const validation = await validateSolutionWithAI({
             problemTitle: problem.title,
             problemDescription: problem.description,
@@ -62,7 +61,6 @@ const createSolution = async (req, res) => {
             });
         }
 
-        // ✅ Only create after passing validation
         const solution = await Solution.create({
             answer,
             problemId,
@@ -79,9 +77,11 @@ const createSolution = async (req, res) => {
 
         await delRedisCache(client, [
             `personalDashboard:${req.user._id}`,
-            `personalDashboard:${problem.createdBy}`,
-            `solutions:problemId:${problemId}`
+            `personalDashboard:${problem.createdBy}`
         ]);
+
+        const keys = await client.keys(`solutions:problemId:${problemId}:userId:*`);
+        if (keys.length) await client.del(keys);
 
         return res.status(201).json({
             message: "Solution created successfully",
