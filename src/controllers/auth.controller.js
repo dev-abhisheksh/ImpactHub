@@ -3,8 +3,8 @@ import { User } from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import hashToken from "../utils/hashToken.js";
 import { ExpertApplication } from "../models/expertApplication.model.js";
-import { sendOtpEmail } from "../services/email.service.js";
 import { OTP } from "../models/otp.model.js";
+import { sendOtpEmail } from "../services/email.service.js";
 
 export const generateAccessToken = (user) => {
     return jwt.sign(
@@ -50,6 +50,7 @@ const registerUser = async (req, res) => {
         }
 
         const otp = Math.floor(100000 + Math.random() * 900000).toString()
+        console.log(otp)
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -64,13 +65,6 @@ const registerUser = async (req, res) => {
         })
 
         await sendOtpEmail(email, otp)
-
-        // await User.create({
-        //     fullName: fullName.trim(),
-        //     email,
-        //     password: hashedPassword,
-        //     role: "user",
-        // });
 
         return res.status(200).json({
             message: "OTP sent to your email",
@@ -107,9 +101,12 @@ const verifyOTP = async (req, res) => {
 
         await OTP.deleteMany({ email });
 
+        const accessToken = generateAccessToken(newUser);
+
         return res.status(201).json({
             message: "Account verified and created successfully",
             userId: newUser._id,
+            accessToken
         });
     } catch (error) {
         console.error("OTP verification failed:", error);
