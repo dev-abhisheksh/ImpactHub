@@ -20,8 +20,11 @@ const createProblem = async (req, res) => {
 
         let bannerImage = null;
         if (req.file) {
-            const uploadResult = await uploadToCloudinary(req.file.buffer);
-            bannerImage = uploadResult.secure_url;
+            const uploadResult = await uploadToCloudinary(req.file.buffer, "problem-images");
+            bannerImage = {
+                url: uploadResult.secure_url,
+                public_id: uploadResult.public_id,
+            };
         }
 
         title = title.trim();
