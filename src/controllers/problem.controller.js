@@ -79,7 +79,7 @@ const createProblem = async (req, res) => {
 
         await delRedisCache(client, [
             `personalDashboard:${req.user._id}`,
-            `problems:page:*`
+            `problems:*`
         ]);
 
         return res.status(201).json({
