@@ -751,6 +751,68 @@ const allPendingReports = async (req, res) => {
     }
 }
 
+const getAnalyticsData = async (req, res) => {
+    try {
+        if (req.user.role !== "admin") {
+            return res.status(403).json({ message: "Only Admins are allowed" })
+        }
+
+        // Role distribution
+        const roleDistribution = await User.aggregate([
+            { $group: { _id: "$role", count: { $sum: 1 } } }
+        ])
+
+        // Problem status breakdown
+        const problemStatusBreakdown = await Problem.aggregate([
+            { $group: { _id: "$status", count: { $sum: 1 } } }
+        ])
+
+        // Problems over time
+        const problemsOverTime = await Problem.aggregate([
+            {
+                $group: {
+                    _id: {
+                        $dateToString: {
+                            format: "%Y-%m-%d",
+                            date: "$createdAt"
+                        }
+                    },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { _id: 1 } }
+        ])
+
+        // Solutions over time
+        const solutionsOverTime = await Solution.aggregate([
+            {
+                $group: {
+                    _id: {
+                        $dateToString: {
+                            format: "%Y-%m-%d",
+                            date: "$createdAt"
+                        }
+                    },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { _id: 1 } }
+        ])
+
+        return res.status(200).json({
+            message: "Fetched analytics data",
+            roleDistribution,
+            problemStatusBreakdown,
+            problemsOverTime,
+            solutionsOverTime
+        })
+
+    } catch (error) {
+        console.error("Failed to fetch analytics data", error)
+        return res.status(500).json({ message: "Failed to fetch analytics data" })
+    }
+}
+
 export {
     expertApplicationRequests,
     approveExpertApplication,
@@ -769,5 +831,6 @@ export {
     getExpertApplications,
     reviewExpertApplication,
     reviewReport,
-    allPendingReports
+    allPendingReports,
+    getAnalyticsData
 }
