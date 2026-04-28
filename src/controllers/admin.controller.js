@@ -353,6 +353,7 @@ const softDeleteProblem = async (req, res) => {
 
         await delRedisCache(client, [
             `allProblems:*`,
+            `problems:*`,
             `problem:${problem._id}`,
             `personalDashboard:${problem.createdBy._id}:*`
         ])
