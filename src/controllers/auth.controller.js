@@ -4,7 +4,8 @@ import bcrypt from "bcryptjs";
 import hashToken from "../utils/hashToken.js";
 import { ExpertApplication } from "../models/expertApplication.model.js";
 import { OTP } from "../models/otp.model.js";
-import { sendOtpEmail } from "../services/email.service.js";
+import { PasswordResetOTP } from "../models/passwordResetOtp.model.js";
+import { sendOtpEmail, sendPasswordResetEmail } from "../services/email.service.js";
 
 export const generateAccessToken = (user) => {
     return jwt.sign(
@@ -312,11 +313,140 @@ const logoutUser = async (req, res) => {
 }
 
 
+// ─── PASSWORD RESET ───────────────────────────────────────────────
+
+const forgotPassword = async (req, res) => {
+    try {
+        let { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
+
+        email = email.trim().toLowerCase();
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            // Don't reveal whether user exists – always return success
+            return res.status(200).json({ message: "If this email is registered, you will receive an OTP." });
+        }
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        console.log("Password reset OTP:", otp);
+
+        await PasswordResetOTP.deleteMany({ email });
+
+        await PasswordResetOTP.create({
+            email,
+            otp,
+            expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+        });
+
+        await sendPasswordResetEmail(email, otp);
+
+        return res.status(200).json({
+            message: "If this email is registered, you will receive an OTP.",
+        });
+    } catch (error) {
+        console.error("Forgot password failed:", error);
+        return res.status(500).json({ message: "Failed to process request" });
+    }
+};
+
+const verifyResetOTP = async (req, res) => {
+    try {
+        let { email, otp } = req.body;
+
+        if (!email || !otp) {
+            return res.status(400).json({ message: "Email and OTP are required" });
+        }
+
+        email = email.trim().toLowerCase();
+
+        const record = await PasswordResetOTP.findOne({ email });
+
+        if (!record) {
+            return res.status(400).json({ message: "Invalid or expired OTP" });
+        }
+
+        if (record.otp !== otp) {
+            return res.status(400).json({ message: "Incorrect OTP" });
+        }
+
+        // OTP is correct – generate a short-lived reset token (15 min)
+        const resetToken = jwt.sign(
+            { email, purpose: "password-reset" },
+            process.env.ACCESS_TOKEN_SECRET,
+            { expiresIn: "15m" }
+        );
+
+        // Delete the OTP so it can't be reused
+        await PasswordResetOTP.deleteMany({ email });
+
+        return res.status(200).json({
+            message: "OTP verified successfully",
+            resetToken,
+        });
+    } catch (error) {
+        console.error("Verify reset OTP failed:", error);
+        return res.status(500).json({ message: "Verification failed" });
+    }
+};
+
+const resetPassword = async (req, res) => {
+    try {
+        const { resetToken, newPassword, confirmPassword } = req.body;
+
+        if (!resetToken || !newPassword || !confirmPassword) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
+
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({ message: "Passwords do not match" });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ message: "Password must be at least 6 characters" });
+        }
+
+        // Verify the reset token
+        let decoded;
+        try {
+            decoded = jwt.verify(resetToken, process.env.ACCESS_TOKEN_SECRET);
+        } catch (err) {
+            return res.status(400).json({ message: "Reset link expired. Please request a new one." });
+        }
+
+        if (decoded.purpose !== "password-reset") {
+            return res.status(400).json({ message: "Invalid token" });
+        }
+
+        const user = await User.findOne({ email: decoded.email });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        user.password = await bcrypt.hash(newPassword, 10);
+        await user.save();
+
+        return res.status(200).json({
+            message: "Password reset successfully. You can now sign in.",
+        });
+    } catch (error) {
+        console.error("Reset password failed:", error);
+        return res.status(500).json({ message: "Failed to reset password" });
+    }
+};
+
+
 export {
     registerUser,
     loginWithPassword,
     refreshAccessToken,
     logoutUser,
     registerExpert,
-    verifyOTP
-}
+    verifyOTP,
+    forgotPassword,
+    verifyResetOTP,
+    resetPassword,
+}

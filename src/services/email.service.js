@@ -82,6 +82,77 @@ const getOtpTemplate = (otp) => `
 </html>
 `;
 
+const getPasswordResetTemplate = (otp) => `
+<!DOCTYPE html>
+<html>
+  <body style="margin:0; padding:0; background-color:#0b1220; font-family:Arial, sans-serif;">
+    
+    <div style="max-width:600px; margin:40px auto; background:#0f172a; border-radius:16px; overflow:hidden; box-shadow:0 10px 40px rgba(0,0,0,0.5);">
+      
+      <!-- Header -->
+      <div style="padding:24px 32px; background:linear-gradient(135deg, #22c55e, #3b82f6); text-align:center;">
+        <h1 style="margin:0; color:white; font-size:24px; letter-spacing:1px;">
+          ImpactHub
+        </h1>
+        <p style="margin:8px 0 0; color:#d1fae5; font-size:14px;">
+          Password Reset Request 🔒
+        </p>
+      </div>
+
+      <!-- Content -->
+      <div style="padding:32px; color:#e5e7eb;">
+        
+        <h2 style="margin-top:0; font-size:20px; color:white;">
+          Reset Your Password
+        </h2>
+
+        <p style="font-size:15px; color:#9ca3af; line-height:1.6;">
+          We received a request to reset your ImpactHub password.  
+          Use the OTP below to verify your identity and set a new password.
+        </p>
+
+        <!-- OTP BOX -->
+        <div style="
+          margin:30px 0;
+          padding:20px;
+          text-align:center;
+          background:rgba(255,255,255,0.05);
+          border:1px solid rgba(255,255,255,0.1);
+          border-radius:12px;
+        ">
+          <span style="
+            font-size:36px;
+            letter-spacing:12px;
+            font-weight:bold;
+            color:#22c55e;
+          ">
+            ${otp}
+          </span>
+        </div>
+
+        <p style="font-size:14px; color:#facc15;">
+          ⏳ This OTP is valid for 10 minutes.
+        </p>
+
+        <p style="font-size:13px; color:#6b7280; margin-top:20px;">
+          If you didn't request a password reset, you can safely ignore this email. Your password will not be changed.
+        </p>
+
+      </div>
+
+      <!-- Footer -->
+      <div style="padding:20px; text-align:center; border-top:1px solid rgba(255,255,255,0.1);">
+        <p style="margin:0; font-size:12px; color:#6b7280;">
+          © ${new Date().getFullYear()} ImpactHub. All rights reserved.
+        </p>
+      </div>
+
+    </div>
+
+  </body>
+</html>
+`;
+
 const sendEmail = async ({ to, subject, htmlContent, textContent }) => {
   return await brevo.transactionalEmails.sendTransacEmail({
     to: [{ email: to }],
@@ -101,6 +172,15 @@ const sendOtpEmail = async (to, otp) => {
   });
 };
 
+const sendPasswordResetEmail = async (to, otp) => {
+  return await sendEmail({
+    to,
+    subject: "Reset your password – ImpactHub",
+    htmlContent: getPasswordResetTemplate(otp),
+    textContent: `Your password reset OTP is: ${otp}. Valid for 10 minutes.`,
+  });
+};
+
 const transporter = {
   verify: () => {
     if (!BREVO_API_KEY) return Promise.resolve(false);
@@ -108,4 +188,4 @@ const transporter = {
   },
 };
 
-export { transporter, sendOtpEmail };
+export { transporter, sendOtpEmail, sendPasswordResetEmail };
