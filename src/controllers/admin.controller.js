@@ -280,6 +280,7 @@ const fetchAllUsers = async (req, res) => {
         const count = await User.countDocuments();
         const proUsers = await User.countDocuments({ isPro: true });
         const admins = await User.countDocuments({ role: "admin" });
+        const experts = await User.countDocuments({ role: "expert" });
 
         const usersGraph = await User.aggregate([
             {
@@ -302,6 +303,7 @@ const fetchAllUsers = async (req, res) => {
             proUsers,
             users,
             admins,
+            experts,
             usersGraph
         });
 
